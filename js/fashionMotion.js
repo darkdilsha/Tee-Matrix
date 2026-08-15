@@ -236,8 +236,11 @@ export class FashionMotionController {
         }
       });
 
-      // 4. Pinned Collection Showcase
+      // 4. Pinned Collection Showcase with Signature 3D Arrival Moment
       this.initPinnedCollectionSection();
+      
+      // 5. Desktop 3D Card Tilt-on-Hover
+      this.init3DCardTilt();
     }
   }
 
@@ -252,6 +255,37 @@ export class FashionMotionController {
       "CAMPAIGN LOOK 02: DYSTOPIAN CYBERNETIC GRAPHIC CUT",
       "CAMPAIGN LOOK 03: JET BLACK ATELIER MINIMAL SILHOUETTE"
     ];
+
+    // Signature 3D Arrival Perspective Sequence: Played once as section enters viewport
+    if (typeof gsap !== 'undefined') {
+      slides.forEach(slide => {
+        gsap.set(slide, {
+          transformPerspective: 1000,
+          scale: 0.88,
+          rotationY: -10,
+          rotationX: 6,
+          boxShadow: "0 10px 30px rgba(0,0,0,0.3)"
+        });
+      });
+
+      ScrollTrigger.create({
+        trigger: container,
+        start: 'top 75%',
+        once: true,
+        onEnter: () => {
+          slides.forEach(slide => {
+            gsap.to(slide, {
+              scale: 1.0,
+              rotationY: 0,
+              rotationX: 0,
+              boxShadow: "0 35px 70px rgba(0,0,0,0.85)",
+              duration: 1.4,
+              ease: this.EASE_PREMIUM
+            });
+          });
+        }
+      });
+    }
 
     ScrollTrigger.create({
       trigger: container,
@@ -274,6 +308,36 @@ export class FashionMotionController {
           subtitle.innerText = looks[index];
         }
       }
+    });
+  }
+
+  init3DCardTilt() {
+    if (this.isMobile || this.isReducedMotion) return;
+
+    const cards = document.querySelectorAll('.editorial-section .product-card');
+    cards.forEach(card => {
+      card.style.transformStyle = 'preserve-3d';
+      card.style.transition = 'transform 0.15s ease-out, box-shadow 0.25s ease';
+
+      card.addEventListener('mousemove', (e) => {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+
+        const rotateX = ((y - centerY) / centerY) * -5; // max 5deg tilt
+        const rotateY = ((x - centerX) / centerX) * 5;
+
+        card.style.transform = `perspective(800px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateZ(8px)`;
+        card.style.boxShadow = `0 20px 40px rgba(0, 0, 0, 0.65)`;
+      });
+
+      card.addEventListener('mouseleave', () => {
+        card.style.transform = `perspective(800px) rotateX(0deg) rotateY(0deg) translateZ(0px)`;
+        card.style.boxShadow = `none`;
+      });
     });
   }
 
@@ -316,3 +380,4 @@ export class FashionMotionController {
 }
 
 export const fashionMotion = new FashionMotionController();
+

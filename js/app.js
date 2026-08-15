@@ -123,7 +123,16 @@ class App {
     // Standard Storefront Navbar
     return `
       <nav class="navbar ${this.currentView !== 'landing' ? 'scrolled' : ''}" id="navbar">
-        <a href="#landing" class="nav-brand brand-link">TEE MATRIX</a>
+        <div style="display: flex; align-items: center; gap: 1rem;">
+          <button class="icon-btn" id="hamburgerBtn" title="Open Navigation Menu" style="padding: 0.4rem;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
+          <a href="#landing" class="nav-brand brand-link">TEE MATRIX</a>
+        </div>
 
         <ul class="nav-links">
           <li>
@@ -171,6 +180,34 @@ class App {
           </button>
         </div>
       </nav>
+
+      <!-- Slide-Out Mobile Navigation Drawer -->
+      <div class="mobile-nav-drawer" id="mobileNavDrawer">
+        <div style="padding: 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+          <span class="brand-font" style="font-size: 1.2rem; color: #fff;">TEE MATRIX</span>
+          <button class="modal-close" id="closeDrawerBtn" style="position: relative; top: 0; right: 0;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+
+        <div style="padding: 2rem 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; flex-grow: 1;">
+          <a href="#landing" class="drawer-link" id="drawerHome" style="font-family: var(--font-heading); font-size: 1.1rem; font-weight: 700; color: #fff; text-decoration: none;">HOME</a>
+          <a href="#shop" class="drawer-link" id="drawerShop" style="font-family: var(--font-heading); font-size: 1.1rem; font-weight: 700; color: #fff; text-decoration: none;">STORE CATALOG</a>
+          <a href="#account" class="drawer-link" id="drawerAccount" style="font-family: var(--font-heading); font-size: 1.1rem; font-weight: 700; color: #fff; text-decoration: none;">MY ACCOUNT</a>
+          <a href="#orders" class="drawer-link" id="drawerOrders" style="font-family: var(--font-heading); font-size: 1.1rem; font-weight: 700; color: #fff; text-decoration: none;">MY ORDERS</a>
+          <a href="#wishlist" class="drawer-link" id="drawerWishlist" style="font-family: var(--font-heading); font-size: 1.1rem; font-weight: 700; color: #fff; text-decoration: none;">WISHLIST</a>
+          <button class="drawer-link" id="drawerHelp" style="font-family: var(--font-heading); font-size: 1.1rem; font-weight: 700; color: var(--text-secondary); text-align: left; background: none; border: none; cursor: pointer;">HELP & CONTACT</button>
+        </div>
+
+        <div style="padding: 1.5rem; border-top: 1px solid var(--border-color);">
+          ${customer ? `
+            <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.75rem;">Signed in as <strong>${customer.phone || customer.name}</strong></div>
+            <button class="btn-secondary" id="drawerLogoutBtn" style="width: 100%; padding: 0.75rem; color: #ef4444; border-color: rgba(239,68,68,0.4);">LOG OUT</button>
+          ` : `
+            <button class="btn-primary" id="drawerLoginBtn" style="width: 100%; padding: 0.85rem;">LOG IN WITH MOBILE OTP</button>
+          `}
+        </div>
+      </div>
     `;
   }
 
@@ -190,6 +227,62 @@ class App {
   }
 
   attachNavbarEvents() {
+    const drawer = document.getElementById('mobileNavDrawer');
+
+    document.getElementById('hamburgerBtn')?.addEventListener('click', () => {
+      drawer?.classList.add('active');
+    });
+
+    document.getElementById('closeDrawerBtn')?.addEventListener('click', () => {
+      drawer?.classList.remove('active');
+    });
+
+    document.getElementById('drawerHome')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      drawer?.classList.remove('active');
+      this.setView('landing');
+    });
+
+    document.getElementById('drawerShop')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      drawer?.classList.remove('active');
+      this.setView('shop');
+    });
+
+    document.getElementById('drawerAccount')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      drawer?.classList.remove('active');
+      accountModal.open('profile');
+    });
+
+    document.getElementById('drawerOrders')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      drawer?.classList.remove('active');
+      accountModal.open('orders');
+    });
+
+    document.getElementById('drawerWishlist')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      drawer?.classList.remove('active');
+      this.setView('shop');
+      window.dispatchEvent(new CustomEvent('filterWishlist'));
+    });
+
+    document.getElementById('drawerHelp')?.addEventListener('click', () => {
+      drawer?.classList.remove('active');
+      store.showToast("Digital Concierge: Contact support at support@teematrix.io");
+    });
+
+    document.getElementById('drawerLoginBtn')?.addEventListener('click', () => {
+      drawer?.classList.remove('active');
+      authModal.open('login');
+    });
+
+    document.getElementById('drawerLogoutBtn')?.addEventListener('click', () => {
+      drawer?.classList.remove('active');
+      store.logoutCustomer();
+    });
+
     document.getElementById('adminGoStoreBtn')?.addEventListener('click', () => {
       this.setView('shop');
     });

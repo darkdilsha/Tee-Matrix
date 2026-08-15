@@ -1,6 +1,5 @@
-// TEE MATRIX - Password-Protected Admin Panel Controller
-
 import { store } from './store.js';
+import { supabaseService } from './supabase.js';
 
 export class AdminPanel {
   constructor() {
@@ -8,6 +7,10 @@ export class AdminPanel {
     this.activeTab = 'products'; // 'products' | 'orders' | 'analytics'
     this.editingProduct = null;
     this.isAddingProduct = false;
+    this.loginStep = 1; // 1: Phone input, 2: 6-digit OTP verification
+    this.adminPhone = '';
+    this.timerCountdown = 30;
+    this.timerInterval = null;
   }
 
   render() {
@@ -32,9 +35,8 @@ export class AdminPanel {
           <!-- Top Icon Badge -->
           <div style="width: 50px; height: 50px; border-radius: 14px; background: #f0f7ff; border: 1px solid #e0f2fe; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 1.25rem; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.08);">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0f172a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
-              <polyline points="10 17 15 12 10 7"/>
-              <line x1="15" y1="12" x2="3" y2="12"/>
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
             </svg>
           </div>
 
@@ -43,90 +45,81 @@ export class AdminPanel {
             Tee Matrix Admin
           </h1>
           <p style="color: #64748b; font-size: 0.82rem; line-height: 1.5; margin-bottom: 1.75rem; font-weight: 400;">
-            Access the product dashboard to manage inventory,<br/>view store analytics, and process orders.
+            ${this.loginStep === 1 
+              ? 'Authorized Admin Phone Verification.<br/>Enter your registered mobile number.' 
+              : `Enter the 6-digit OTP code sent to<br/><strong style="color: #0f172a;">${this.adminPhone}</strong>`}
           </p>
 
-          <!-- Login Form -->
-          <form id="adminLoginForm" style="display: flex; flex-direction: column; text-align: left;">
-            
-            <!-- Email / Username Field -->
-            <div style="position: relative; margin-bottom: 1rem;">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); pointer-events: none;">
-                <rect x="2" y="4" width="20" height="16" rx="2"/>
-                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
-              </svg>
-              <input 
-                type="text" 
-                id="adminUser" 
-                required 
-                placeholder="Email or Username"
-                style="width: 100%; padding: 0.85rem 1rem 0.85rem 2.8rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 0.9rem; color: #0f172a; outline: none; transition: all 0.2s ease; box-sizing: border-box;"
-                onfocus="this.style.borderColor='#0f172a'; this.style.background='#ffffff';"
-                onblur="this.style.borderColor='#e2e8f0'; this.style.background='#f8fafc';"
-              />
-            </div>
+          ${this.loginStep === 1 ? `
+            <!-- Step 1: Admin Phone Form -->
+            <form id="adminPhoneForm" style="display: flex; flex-direction: column; text-align: left;">
+              <div style="margin-bottom: 1.25rem;">
+                <label style="font-size: 0.75rem; color: #64748b; font-weight: 600; display: block; margin-bottom: 0.4rem;">ADMIN MOBILE NUMBER *</label>
+                <div style="display: flex; gap: 0.5rem;">
+                  <span style="padding: 0.85rem 1rem; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 12px; font-size: 0.9rem; font-weight: 600; color: #0f172a;">+91</span>
+                  <input 
+                    type="tel" 
+                    id="adminMobileInput" 
+                    required 
+                    value="${this.adminPhone ? this.adminPhone.replace('+91', '').trim() : '8593071292'}"
+                    placeholder="8593071292"
+                    style="width: 100%; padding: 0.85rem 1rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 1rem; color: #0f172a; outline: none; transition: all 0.2s ease; box-sizing: border-box; font-weight: 600;"
+                    onfocus="this.style.borderColor='#0f172a'; this.style.background='#ffffff';"
+                    onblur="this.style.borderColor='#e2e8f0'; this.style.background='#f8fafc';"
+                  />
+                </div>
+              </div>
 
-            <!-- Password Field -->
-            <div style="position: relative; margin-bottom: 0.4rem;">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); pointer-events: none;">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-              </svg>
-              <input 
-                type="password" 
-                id="adminPass" 
-                required 
-                placeholder="Password"
-                style="width: 100%; padding: 0.85rem 1rem 0.85rem 2.8rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 0.9rem; color: #0f172a; outline: none; transition: all 0.2s ease; box-sizing: border-box;"
-                onfocus="this.style.borderColor='#0f172a'; this.style.background='#ffffff';"
-                onblur="this.style.borderColor='#e2e8f0'; this.style.background='#f8fafc';"
-              />
-            </div>
+              <div id="adminAuthErr" style="color: #ef4444; font-size: 0.8rem; margin-bottom: 1rem; display: none; text-align: center; font-weight: 500;"></div>
 
-            <!-- Forgot Password Link -->
-            <div style="display: flex; justify-content: flex-end; margin-bottom: 1.5rem;">
-              <a href="#" id="adminForgotPassLink" onclick="alert('Please contact system administrator to reset password.'); return false;" style="font-size: 0.78rem; color: #64748b; font-weight: 500; text-decoration: none; transition: color 0.2s;" onmouseover="this.style.color='#0f172a'" onmouseout="this.style.color='#64748b'">
-                Forgot password?
-              </a>
-            </div>
+              <button 
+                type="submit" 
+                style="width: 100%; padding: 0.9rem; background: #0f172a; color: #ffffff; font-weight: 600; font-size: 0.9rem; border-radius: 12px; border: none; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);"
+                onmouseover="this.style.background='#1e293b'; this.style.transform='translateY(-1px)';"
+                onmouseout="this.style.background='#0f172a'; this.style.transform='translateY(0)';"
+              >
+                REQUEST 6-DIGIT OTP
+              </button>
+            </form>
+          ` : `
+            <!-- Step 2: 6-Digit OTP Form -->
+            <form id="adminOtpForm" style="display: flex; flex-direction: column; text-align: center;">
+              <div class="otp-container" id="adminOtpBoxContainer">
+                <input type="text" maxlength="1" class="otp-box" data-index="0" autofocus />
+                <input type="text" maxlength="1" class="otp-box" data-index="1" />
+                <input type="text" maxlength="1" class="otp-box" data-index="2" />
+                <input type="text" maxlength="1" class="otp-box" data-index="3" />
+                <input type="text" maxlength="1" class="otp-box" data-index="4" />
+                <input type="text" maxlength="1" class="otp-box" data-index="5" />
+              </div>
 
-            <!-- Auth Error Message -->
-            <div id="adminAuthErr" style="color: #ef4444; font-size: 0.8rem; margin-bottom: 1rem; display: none; text-align: center; font-weight: 500;"></div>
+              <div id="adminAuthErr" style="color: #ef4444; font-size: 0.8rem; margin-bottom: 1rem; display: none; text-align: center; font-weight: 600;"></div>
 
-            <!-- Primary Log In Button -->
-            <button 
-              type="submit" 
-              style="width: 100%; padding: 0.9rem; background: #0f172a; color: #ffffff; font-weight: 600; font-size: 0.9rem; border-radius: 12px; border: none; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);"
-              onmouseover="this.style.background='#1e293b'; this.style.transform='translateY(-1px)';"
-              onmouseout="this.style.background='#0f172a'; this.style.transform='translateY(0)';"
-            >
-              Log In
-            </button>
-          </form>
+              <button 
+                type="submit" 
+                id="verifyAdminOtpBtn"
+                style="width: 100%; padding: 0.9rem; background: #0f172a; color: #ffffff; font-weight: 600; font-size: 0.9rem; border-radius: 12px; border: none; cursor: pointer; transition: all 0.2s ease; margin-bottom: 1.25rem; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);"
+              >
+                VERIFY & UNLOCK DASHBOARD
+              </button>
 
-          <!-- Divider Row -->
-          <div style="display: flex; align-items: center; gap: 1rem; margin: 1.6rem 0 1.25rem;">
-            <div style="flex: 1; height: 1px; background: #e2e8f0;"></div>
-            <span style="font-size: 0.75rem; color: #94a3b8; font-weight: 500; white-space: nowrap;">Or sign in with</span>
-            <div style="flex: 1; height: 1px; background: #e2e8f0;"></div>
-          </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; border-top: 1px solid #f1f5f9; padding-top: 1rem;">
+                <button type="button" id="adminChangeNumBtn" style="color: #64748b; background: none; border: none; cursor: pointer; font-weight: 500;">
+                  &larr; Change Number
+                </button>
 
-          <!-- Social Buttons Row -->
-          <div style="display: flex; justify-content: center; margin-bottom: 1rem;">
-            <!-- Google Button -->
-            <button type="button" onclick="alert('Google authentication integration')" title="Sign in with Google" style="width: 100%; max-width: 220px; height: 44px; border-radius: 12px; border: 1px solid #e2e8f0; background: #f8fafc; display: flex; align-items: center; justify-content: center; gap: 0.6rem; cursor: pointer; font-size: 0.82rem; font-weight: 600; color: #334155; transition: all 0.2s ease;" onmouseover="this.style.background='#ffffff'; this.style.borderColor='#cbd5e1';" onmouseout="this.style.background='#f8fafc'; this.style.borderColor='#e2e8f0';">
-              <svg width="18" height="18" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-              </svg>
-              <span>Sign in with Google</span>
-            </button>
-          </div>
+                <span id="adminTimerContainer" style="color: #94a3b8;">
+                  Resend in <strong id="adminTimerCount" style="color: #0f172a;">${this.timerCountdown}s</strong>
+                </span>
+                <button type="button" id="adminResendOtpBtn" style="display: none; color: #0f172a; font-weight: 700; text-decoration: underline; background: none; border: none; cursor: pointer;">
+                  Resend OTP
+                </button>
+              </div>
+            </form>
+          `}
 
           <!-- Public Storefront Navigation Link -->
-          <div style="margin-top: 1.25rem;">
+          <div style="margin-top: 1.5rem;">
             <a href="#landing" style="font-size: 0.78rem; color: #94a3b8; text-decoration: none; font-weight: 500; transition: color 0.2s;" onmouseover="this.style.color='#0f172a'" onmouseout="this.style.color='#94a3b8'">
               &larr; Return to Public Storefront
             </a>
@@ -768,34 +761,100 @@ export class AdminPanel {
   }
 
   attachEvents(reRenderCallback) {
-    // Admin login form
-    const loginForm = document.getElementById('adminLoginForm');
-    if (loginForm) {
-      loginForm.addEventListener('submit', (e) => {
+    // Step 1: Admin Phone Form Submission
+    const adminPhoneForm = document.getElementById('adminPhoneForm');
+    if (adminPhoneForm) {
+      adminPhoneForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const user = document.getElementById('adminUser').value;
-        const pass = document.getElementById('adminPass').value;
+        const rawDigits = document.getElementById('adminMobileInput').value.trim();
         const errEl = document.getElementById('adminAuthErr');
 
-        const res = store.verifyAdminLogin(user, pass);
-        if (res.success) {
-          this.isAuthenticated = true;
-          localStorage.setItem('tm_admin_auth', 'true');
-          reRenderCallback();
-        } else {
+        if (rawDigits.length < 10) {
           if (errEl) {
-            errEl.innerText = res.message;
+            errEl.innerText = "Please enter a valid 10-digit mobile number";
             errEl.style.display = 'block';
-          } else {
-            store.showToast(res.message);
           }
+          return;
         }
+
+        this.adminPhone = rawDigits.startsWith('+') ? rawDigits : `+91 ${rawDigits}`;
+
+        // Request SMS OTP via Supabase client
+        const res = await supabaseService.sendSMSOTP(this.adminPhone);
+        if (res.isDevMode) {
+          store.showToast(res.message);
+        }
+
+        this.loginStep = 2;
+        reRenderCallback();
+        this.startAdminTimer();
       });
     }
+
+    // Step 2: 6-Digit Admin OTP Box Navigation & Auto-Submit
+    const boxes = document.querySelectorAll('#adminOtpForm .otp-box');
+    if (boxes.length > 0) {
+      boxes[0].focus();
+
+      boxes.forEach((box, idx) => {
+        box.addEventListener('input', (e) => {
+          const val = e.target.value;
+          if (val && idx < 5) {
+            boxes[idx + 1].focus();
+          }
+
+          const currentCode = Array.from(boxes).map(b => b.value).join('');
+          if (currentCode.length === 6) {
+            this.handleAdminOTPVerify(currentCode, reRenderCallback);
+          }
+        });
+
+        box.addEventListener('keydown', (e) => {
+          if (e.key === 'Backspace' && !box.value && idx > 0) {
+            boxes[idx - 1].focus();
+          }
+        });
+
+        box.addEventListener('paste', (e) => {
+          e.preventDefault();
+          const pasted = (e.clipboardData || window.clipboardData).getData('text').trim();
+          if (/^\d{6}$/.test(pasted)) {
+            pasted.split('').forEach((digit, i) => {
+              if (boxes[i]) boxes[i].value = digit;
+            });
+            boxes[5].focus();
+            this.handleAdminOTPVerify(pasted, reRenderCallback);
+          }
+        });
+      });
+    }
+
+    const adminOtpForm = document.getElementById('adminOtpForm');
+    if (adminOtpForm) {
+      adminOtpForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const code = Array.from(document.querySelectorAll('#adminOtpForm .otp-box')).map(b => b.value).join('');
+        this.handleAdminOTPVerify(code, reRenderCallback);
+      });
+    }
+
+    // Back to Step 1
+    document.getElementById('adminChangeNumBtn')?.addEventListener('click', () => {
+      this.loginStep = 1;
+      reRenderCallback();
+    });
+
+    // Resend OTP
+    document.getElementById('adminResendOtpBtn')?.addEventListener('click', async () => {
+      const res = await supabaseService.sendSMSOTP(this.adminPhone);
+      store.showToast(res.message);
+      this.startAdminTimer();
+    });
 
     // Logout
     document.getElementById('adminLogoutBtn')?.addEventListener('click', () => {
       this.isAuthenticated = false;
+      this.loginStep = 1;
       localStorage.removeItem('tm_admin_auth');
       localStorage.removeItem('tm_logged_admin');
       reRenderCallback();
@@ -880,4 +939,76 @@ export class AdminPanel {
       });
     });
   }
+
+  startAdminTimer() {
+    if (this.timerInterval) clearInterval(this.timerInterval);
+    this.timerCountdown = 30;
+    const timerContainer = document.getElementById('adminTimerContainer');
+    const timerCount = document.getElementById('adminTimerCount');
+    const resendBtn = document.getElementById('adminResendOtpBtn');
+
+    if (timerContainer) timerContainer.style.display = 'inline';
+    if (resendBtn) resendBtn.style.display = 'none';
+
+    this.timerInterval = setInterval(() => {
+      this.timerCountdown--;
+      if (timerCount) timerCount.innerText = `${this.timerCountdown}s`;
+
+      if (this.timerCountdown <= 0) {
+        clearInterval(this.timerInterval);
+        if (timerContainer) timerContainer.style.display = 'none';
+        if (resendBtn) resendBtn.style.display = 'inline';
+      }
+    }, 1000);
+  }
+
+  async handleAdminOTPVerify(code, reRenderCallback) {
+    const errEl = document.getElementById('adminAuthErr');
+    const boxContainer = document.getElementById('adminOtpBoxContainer');
+
+    if (code.length < 6) {
+      if (errEl) {
+        errEl.innerText = "Please enter all 6 digits of the OTP";
+        errEl.style.display = 'block';
+      }
+      return;
+    }
+
+    // 1. Verify 6-digit OTP
+    const otpRes = await supabaseService.verifySMSOTP(this.adminPhone, code);
+
+    if (!otpRes.success) {
+      if (boxContainer) {
+        boxContainer.classList.add('otp-error');
+        setTimeout(() => boxContainer.classList.remove('otp-error'), 800);
+      }
+      if (errEl) {
+        errEl.innerText = otpRes.message || "Invalid 6-digit OTP code";
+        errEl.style.display = 'block';
+      }
+      return;
+    }
+
+    // 2. Check phone number against authorized admin_numbers table & owner whitelist
+    const adminCheck = await supabaseService.verifyAdminNumber(this.adminPhone);
+
+    if (adminCheck.success) {
+      this.isAuthenticated = true;
+      localStorage.setItem('tm_admin_auth', 'true');
+      localStorage.setItem('tm_logged_admin', this.adminPhone);
+      store.showToast(`Welcome Master Admin (${this.adminPhone})`);
+      reRenderCallback();
+    } else {
+      // OTP was valid but number is unauthorized
+      if (boxContainer) {
+        boxContainer.classList.add('otp-error');
+        setTimeout(() => boxContainer.classList.remove('otp-error'), 800);
+      }
+      if (errEl) {
+        errEl.innerText = adminCheck.message || "This number isn't authorized for admin access";
+        errEl.style.display = 'block';
+      }
+    }
+  }
 }
+

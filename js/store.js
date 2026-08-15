@@ -475,39 +475,40 @@ class StoreService {
     return !!this.getCurrentCustomer();
   }
 
-  loginCustomer(email, password) {
-    const customers = this.getCustomers();
-    const customer = customers.find(c => c.email.toLowerCase() === email.toLowerCase() && c.password === password);
-    
-    if (customer) {
-      const session = { name: customer.name, email: customer.email };
-      localStorage.setItem('tm_customer_session', JSON.stringify(session));
-      this.notify();
-      this.showToast(`Welcome back, ${customer.name}!`);
-      return { success: true, customer };
+  loginCustomerWithPhone(phone) {
+    const formattedPhone = phone.startsWith('+') ? phone : `+91 ${phone}`;
+    let customers = this.getCustomers();
+    let customer = customers.find(c => c.phone === formattedPhone || c.phone === phone);
+
+    if (!customer) {
+      customer = {
+        name: `Member (${formattedPhone.slice(-4)})`,
+        phone: formattedPhone,
+        email: ''
+      };
+      customers.push(customer);
+      localStorage.setItem('tm_customers', JSON.stringify(customers));
     }
-    return { success: false, message: "Invalid email or password" };
+
+    const session = { name: customer.name, phone: customer.phone, email: customer.email || '' };
+    localStorage.setItem('tm_customer_session', JSON.stringify(session));
+    this.notify();
+    this.showToast(`Logged in successfully as ${session.name}`);
+    return { success: true, customer: session };
   }
 
-  signupCustomer(name, email, password) {
-    const customers = this.getCustomers();
-    const existing = customers.find(c => c.email.toLowerCase() === email.toLowerCase());
-    
-    if (existing) {
-      return { success: false, message: "An account with this email already exists" };
-    }
+  updateCustomerProfile(updatedData) {
+    let session = this.getCurrentCustomer();
+    if (!session) return { success: false, message: "Not logged in" };
 
-    const newCustomer = { name, email, password };
-    customers.push(newCustomer);
-    localStorage.setItem('tm_customers', JSON.stringify(customers));
-    
-    // Auto login
-    const session = { name: newCustomer.name, email: newCustomer.email };
+    session.name = updatedData.name || session.name;
+    session.phone = updatedData.phone || session.phone;
+    session.email = updatedData.email !== undefined ? updatedData.email : session.email;
+
     localStorage.setItem('tm_customer_session', JSON.stringify(session));
-    
     this.notify();
-    this.showToast(`Account created! Welcome, ${name}`);
-    return { success: true, customer: newCustomer };
+    this.showToast("Profile updated successfully");
+    return { success: true, customer: session };
   }
 
   logoutCustomer() {
