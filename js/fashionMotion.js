@@ -357,9 +357,8 @@ export class FashionMotionController {
     ScrollTrigger.create({
       trigger: container,
       start: 'top top',
-      end: '+=200%',
-      pin: true,
-      scrub: 0.8,
+      end: 'bottom bottom',
+      scrub: true,
       invalidateOnRefresh: true,
       onUpdate: (self) => {
         const index = Math.min(slides.length - 1, Math.floor(self.progress * slides.length));
