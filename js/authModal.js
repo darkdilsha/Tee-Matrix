@@ -89,7 +89,7 @@ export class AuthModal {
           <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem;">MOBILE PHONE NUMBER *</label>
           <div style="display: flex; gap: 0.5rem;">
             <span style="padding: 0.8rem 1rem; background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: #fff; font-size: 0.9rem; font-weight: 600;">+91</span>
-            <input type="tel" id="mobileNumberInput" required class="input-field" placeholder="8593071292" value="${this.phoneNumber ? this.phoneNumber.replace('+91', '').trim() : ''}" style="font-size: 1rem; letter-spacing: 0.05em;" />
+            <input type="tel" id="mobileNumberInput" required class="input-field" placeholder="9876543210" value="${this.phoneNumber ? this.phoneNumber.replace('+91', '').trim() : ''}" style="font-size: 1rem; letter-spacing: 0.05em;" />
           </div>
         </div>
 

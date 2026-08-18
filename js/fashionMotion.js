@@ -249,12 +249,33 @@ export class FashionMotionController {
     if (!container || typeof ScrollTrigger === 'undefined') return;
 
     const slides = container.querySelectorAll('.pinned-bg-slide');
-    const subtitle = document.getElementById('pinnedSubtitle');
-    const looks = [
-      "CAMPAIGN LOOK 01: HEAVYWEIGHT ACID WASH SILHOUETTE",
-      "CAMPAIGN LOOK 02: DYSTOPIAN CYBERNETIC GRAPHIC CUT",
-      "CAMPAIGN LOOK 03: JET BLACK ATELIER MINIMAL SILHOUETTE"
+    const tagEl = document.getElementById('pinnedTag');
+    const titleEl = document.getElementById('pinnedTitle');
+    const subtitleEl = document.getElementById('pinnedSubtitle');
+    const priceEl = document.getElementById('pinnedPrice');
+
+    const lookData = [
+      {
+        tag: "LOOK 01 / 03 &bull; FEATURED LOOKBOOK",
+        title: "THE ACID MATRIX SERIES",
+        desc: "Custom acid wash finish crafted from 300 GSM combed organic cotton with drop-shoulder boxy drape.",
+        price: "₹1,999"
+      },
+      {
+        tag: "LOOK 02 / 03 &bull; FEATURED LOOKBOOK",
+        title: "CYBERNETIC MATRIX DROP",
+        desc: "Dystopian graphic placement on 280 GSM heavyweight jersey. Engineered for urban outerwear.",
+        price: "₹2,499"
+      },
+      {
+        tag: "LOOK 03 / 03 &bull; FEATURED LOOKBOOK",
+        title: "JET BLACK ATELIER CUT",
+        desc: "Minimalist heavyweight black tee with luxury reinforced double-stitched collar and pre-shrunk finish.",
+        price: "₹2,299"
+      }
     ];
+
+    let lastIndex = -1;
 
     // Signature 3D Arrival Perspective Sequence: Played once as section enters viewport
     if (typeof gsap !== 'undefined') {
@@ -304,11 +325,46 @@ export class FashionMotionController {
           }
         });
 
-        if (subtitle && looks[index]) {
-          subtitle.innerText = looks[index];
+        if (index !== lastIndex && lookData[index]) {
+          lastIndex = index;
+          const data = lookData[index];
+
+          // Crossfade text elements smoothly
+          const textEls = [tagEl, titleEl, subtitleEl, priceEl].filter(Boolean);
+          textEls.forEach(el => el.style.opacity = '0.2');
+
+          setTimeout(() => {
+            if (tagEl) tagEl.innerHTML = data.tag;
+            if (titleEl) titleEl.innerText = data.title;
+            if (subtitleEl) subtitleEl.innerText = data.desc;
+            if (priceEl) priceEl.innerText = data.price;
+
+            textEls.forEach(el => el.style.opacity = '1');
+          }, 150);
         }
       }
     });
+  }
+
+  scrollTo(target, options = {}) {
+    if (this.lenis) {
+      this.lenis.scrollTo(target, options);
+    } else {
+      const el = typeof target === 'string' ? document.querySelector(target) : target;
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+      } else if (typeof target === 'number') {
+        window.scrollTo({ top: target, behavior: 'smooth' });
+      }
+    }
+  }
+
+  stop() {
+    this.lenis?.stop();
+  }
+
+  start() {
+    this.lenis?.start();
   }
 
   init3DCardTilt() {
@@ -335,8 +391,8 @@ export class FashionMotionController {
       });
 
       card.addEventListener('mouseleave', () => {
-        card.style.transform = `perspective(800px) rotateX(0deg) rotateY(0deg) translateZ(0px)`;
-        card.style.boxShadow = `none`;
+        card.style.transform = '';
+        card.style.boxShadow = '';
       });
     });
   }
@@ -380,4 +436,5 @@ export class FashionMotionController {
 }
 
 export const fashionMotion = new FashionMotionController();
+
 

@@ -61,8 +61,8 @@ export class AdminPanel {
                     type="tel" 
                     id="adminMobileInput" 
                     required 
-                    value="${this.adminPhone ? this.adminPhone.replace('+91', '').trim() : '8593071292'}"
-                    placeholder="8593071292"
+                    value="${this.adminPhone ? this.adminPhone.replace('+91', '').trim() : ''}"
+                    placeholder="9876543210"
                     style="width: 100%; padding: 0.85rem 1rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 1rem; color: #0f172a; outline: none; transition: all 0.2s ease; box-sizing: border-box; font-weight: 600;"
                     onfocus="this.style.borderColor='#0f172a'; this.style.background='#ffffff';"
                     onblur="this.style.borderColor='#e2e8f0'; this.style.background='#f8fafc';"

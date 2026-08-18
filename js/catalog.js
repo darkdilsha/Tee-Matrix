@@ -33,7 +33,8 @@ export class CatalogPage {
     localStorage.setItem('tm_wishlist', JSON.stringify(Array.from(this.wishlistSet)));
   }
 
-  render() {
+  render(isNewArrivals = false) {
+    this.isNewArrivalsMode = isNewArrivals;
     const products = this.getFilteredProducts();
 
     return `
@@ -43,9 +44,13 @@ export class CatalogPage {
         <div style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem;">
           <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
             <div>
-              <span class="section-tag" style="letter-spacing: 0.2em;">STOREFRONT CATALOG</span>
+              <span class="section-tag" style="letter-spacing: 0.2em;">
+                ${this.isNewArrivalsMode ? 'CURATED RELEASES &bull; ONLINE DROPS' : 'STOREFRONT CATALOG'}
+              </span>
               <h1 class="brand-font" style="font-size: clamp(1.8rem, 4vw, 2.5rem); color: #fff;">
-                ${this.showOnlyWishlist ? 'MY WISHLIST' : 'THE MATRIX CATALOG'}
+                ${this.showOnlyWishlist 
+                  ? 'MY WISHLIST' 
+                  : (this.isNewArrivalsMode ? 'NEW ARRIVALS CATALOG' : 'THE MATRIX CATALOG')}
               </h1>
             </div>
 
@@ -55,14 +60,17 @@ export class CatalogPage {
                 <circle cx="11" cy="11" r="8"></circle>
                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
               </svg>
-              <input type="text" id="searchInput" placeholder="Search for tees..." value="${this.searchQuery}" style="font-size: 0.9rem;" />
+              <input type="text" id="searchInput" placeholder="${this.isNewArrivalsMode ? 'Search new arrivals...' : 'Search for tees...'}" value="${this.searchQuery}" style="font-size: 0.9rem;" />
             </div>
           </div>
 
           <!-- Horizontally Scrollable Category Chips Row -->
           <div class="category-scroll-row">
-            ${['All', 'New', 'Oversized', 'Graphic', 'Plain', 'Best Sellers'].map(cat => `
-              <button class="pill-btn ${this.currentCategory === cat && !this.showOnlyWishlist ? 'active' : ''}" data-category="${cat}" style="border-radius: 20px; white-space: nowrap;">
+            ${(this.isNewArrivalsMode 
+              ? ['All New', 'Acid Wash', 'Graphic', 'Heavyweight Minimal', 'Vintage']
+              : ['All', 'New', 'Oversized', 'Graphic', 'Plain', 'Best Sellers']
+            ).map(cat => `
+              <button class="pill-btn ${(this.currentCategory === cat || (cat === 'All New' && this.currentCategory === 'All')) && !this.showOnlyWishlist ? 'active' : ''}" data-category="${cat}" style="border-radius: 20px; white-space: nowrap;">
                 ${cat}
               </button>
             `).join('')}
@@ -167,6 +175,11 @@ export class CatalogPage {
 
   getFilteredProducts() {
     let products = store.getProducts();
+
+    // Dedicated New Arrivals Mode Base Filter
+    if (this.isNewArrivalsMode && !this.showOnlyWishlist) {
+      products = products.filter(p => p.isNewArrival || p.badge === 'NEW' || p.isFeatured);
+    }
 
     // Wishlist Filter
     if (this.showOnlyWishlist) {

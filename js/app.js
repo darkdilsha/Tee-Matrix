@@ -1,5 +1,3 @@
-// TEE MATRIX - Main Application Controller
-
 import { store } from './store.js';
 import { LandingPage } from './landing.js';
 import { CatalogPage } from './catalog.js';
@@ -8,6 +6,7 @@ import { CartDrawer, CheckoutModal } from './cart.js';
 import { AdminPanel } from './admin.js';
 import { authModal } from './authModal.js';
 import { accountModal } from './accountModal.js';
+import { fashionMotion } from './fashionMotion.js';
 
 class App {
   constructor() {
@@ -63,26 +62,37 @@ class App {
     if (hash === 'shop') {
       this.currentView = 'shop';
       this.render();
+      fashionMotion.scrollTo(0, { immediate: true });
+    } else if (hash === 'new-arrivals') {
+      this.currentView = 'new-arrivals';
+      this.render();
+      fashionMotion.scrollTo(0, { immediate: true });
     } else if (hash === 'admin') {
       this.currentView = 'admin';
       this.render();
+      fashionMotion.scrollTo(0, { immediate: true });
     } else {
-      // 'landing', 'new-arrivals', 'story', 'hero', etc.
       this.currentView = 'landing';
       this.render();
-      if (hash === 'new-arrivals' || hash === 'story' || hash === 'hero') {
+      if (hash === 'story' || hash === 'hero') {
         setTimeout(() => {
-          document.getElementById(hash)?.scrollIntoView({ behavior: 'smooth' });
+          fashionMotion.scrollTo('#' + hash);
         }, 150);
+      } else {
+        fashionMotion.scrollTo(0, { immediate: true });
       }
     }
   }
 
   setView(viewName) {
-    // Strict Guard: if trying to open admin, check auth
+    // Clean up ScrollTriggers if leaving landing page
+    if (this.currentView === 'landing' && viewName !== 'landing' && typeof ScrollTrigger !== 'undefined') {
+      ScrollTrigger.getAll().forEach(st => st.kill());
+    }
+
     this.currentView = viewName;
     window.location.hash = viewName;
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    fashionMotion.scrollTo(0, { immediate: true });
     this.render();
   }
 
@@ -142,7 +152,7 @@ class App {
             <a href="#shop" class="nav-link ${this.currentView === 'shop' ? 'active' : ''}">STORE CATALOG</a>
           </li>
           <li>
-            <a href="#new-arrivals" class="nav-link" id="navNewArrivals">NEW ARRIVALS</a>
+            <a href="#new-arrivals" class="nav-link ${this.currentView === 'new-arrivals' ? 'active' : ''}" id="navNewArrivals">NEW ARRIVALS</a>
           </li>
           <li>
             <button class="nav-link" id="navAccountBtnLink" style="background:none; border:none; cursor:pointer;">ACCOUNT</button>
@@ -193,6 +203,7 @@ class App {
         <div style="padding: 2rem 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; flex-grow: 1;">
           <a href="#landing" class="drawer-link" id="drawerHome" style="font-family: var(--font-heading); font-size: 1.1rem; font-weight: 700; color: #fff; text-decoration: none;">HOME</a>
           <a href="#shop" class="drawer-link" id="drawerShop" style="font-family: var(--font-heading); font-size: 1.1rem; font-weight: 700; color: #fff; text-decoration: none;">STORE CATALOG</a>
+          <a href="#new-arrivals" class="drawer-link" id="drawerNewArrivals" style="font-family: var(--font-heading); font-size: 1.1rem; font-weight: 700; color: #fff; text-decoration: none;">NEW ARRIVALS</a>
           <a href="#account" class="drawer-link" id="drawerAccount" style="font-family: var(--font-heading); font-size: 1.1rem; font-weight: 700; color: #fff; text-decoration: none;">MY ACCOUNT</a>
           <a href="#orders" class="drawer-link" id="drawerOrders" style="font-family: var(--font-heading); font-size: 1.1rem; font-weight: 700; color: #fff; text-decoration: none;">MY ORDERS</a>
           <a href="#wishlist" class="drawer-link" id="drawerWishlist" style="font-family: var(--font-heading); font-size: 1.1rem; font-weight: 700; color: #fff; text-decoration: none;">WISHLIST</a>
@@ -247,6 +258,12 @@ class App {
       e.preventDefault();
       drawer?.classList.remove('active');
       this.setView('shop');
+    });
+
+    document.getElementById('drawerNewArrivals')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      drawer?.classList.remove('active');
+      this.setView('new-arrivals');
     });
 
     document.getElementById('drawerAccount')?.addEventListener('click', (e) => {
@@ -313,14 +330,7 @@ class App {
           this.setView('shop');
         } else if (href === '#new-arrivals') {
           e.preventDefault();
-          if (this.currentView !== 'landing') {
-            this.setView('landing');
-            setTimeout(() => {
-              document.getElementById('new-arrivals')?.scrollIntoView({ behavior: 'smooth' });
-            }, 200);
-          } else {
-            document.getElementById('new-arrivals')?.scrollIntoView({ behavior: 'smooth' });
-          }
+          this.setView('new-arrivals');
         }
       });
     });
@@ -364,7 +374,10 @@ class App {
       mainContent.innerHTML = this.landingPage.render();
       this.landingPage.attachEvents();
     } else if (this.currentView === 'shop') {
-      mainContent.innerHTML = this.catalogPage.render();
+      mainContent.innerHTML = this.catalogPage.render(false);
+      this.catalogPage.attachEvents(() => this.renderView());
+    } else if (this.currentView === 'new-arrivals') {
+      mainContent.innerHTML = this.catalogPage.render(true);
       this.catalogPage.attachEvents(() => this.renderView());
     } else if (this.currentView === 'admin') {
       mainContent.innerHTML = this.adminPanel.render();

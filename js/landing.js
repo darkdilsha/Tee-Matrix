@@ -109,7 +109,7 @@ export class LandingPage {
           </div>
         </section>
 
-        <!-- Section 4: Pinned Sticky Collection Showcase (Zara / Jacquemus Moment) -->
+        <!-- Section 4: Pinned Sticky Collection Showcase (Multi-Look Editorial Scroll) -->
         <section class="pinned-section-container" id="pinnedCollectionContainer">
           <div class="pinned-sticky-view">
             <!-- Crossfading Campaign Slides -->
@@ -117,16 +117,22 @@ export class LandingPage {
             <img src="assets/story_campaign.jpg" class="pinned-bg-slide" alt="Look 02" />
             <img src="assets/tee_black_heavy.jpg" class="pinned-bg-slide" alt="Look 03" />
 
-            <div style="position: absolute; inset: 0; background: linear-gradient(to right, rgba(8,8,8,0.85) 0%, rgba(8,8,8,0.3) 60%, transparent 100%);"></div>
+            <div style="position: absolute; inset: 0; background: linear-gradient(to right, rgba(8,8,8,0.88) 0%, rgba(8,8,8,0.4) 65%, transparent 100%);"></div>
 
             <div class="container" style="position: relative; z-index: 10; max-width: 650px;">
-              <span class="section-tag" style="color: var(--accent-gold); letter-spacing: 0.3em;">FEATURED LOOKBOOK</span>
-              <h2 style="font-family: var(--font-display); font-size: clamp(2.2rem, 5vw, 3.8rem); line-height: 1.1; color: #fff; margin: 1rem 0;">
+              <span class="section-tag" id="pinnedTag" style="color: var(--accent-gold); letter-spacing: 0.3em; transition: opacity 0.3s ease;">LOOK 01 / 03 &bull; FEATURED LOOKBOOK</span>
+              <h2 id="pinnedTitle" style="font-family: var(--font-display); font-size: clamp(2.2rem, 5vw, 3.8rem); line-height: 1.1; color: #fff; margin: 0.8rem 0; transition: opacity 0.3s ease;">
                 THE ACID MATRIX SERIES
               </h2>
-              <p id="pinnedSubtitle" style="font-size: 1rem; color: var(--text-secondary); line-height: 1.8; margin-bottom: 2.5rem; letter-spacing: 0.05em; transition: opacity 0.4s ease;">
-                CAMPAIGN LOOK 01: HEAVYWEIGHT ACID WASH SILHOUETTE
+              <p id="pinnedSubtitle" style="font-size: 0.95rem; color: var(--text-secondary); line-height: 1.7; margin-bottom: 1.5rem; letter-spacing: 0.02em; transition: opacity 0.3s ease;">
+                Custom acid wash finish crafted from 300 GSM combed organic cotton with drop-shoulder boxy drape.
               </p>
+
+              <div style="display: flex; align-items: center; gap: 1.5rem; margin-bottom: 2rem;">
+                <span id="pinnedPrice" style="font-family: var(--font-heading); font-size: 1.6rem; font-weight: 700; color: #fff; transition: opacity 0.3s ease;">₹1,999</span>
+                <span class="badge badge-stock">LIMITED ONLINE DROP</span>
+              </div>
+
               <button class="btn-primary magnetic-btn" id="pinnedShopBtn" style="padding: 1.1rem 2.8rem;">
                 <span>EXPLORE LOOKBOOK</span>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
