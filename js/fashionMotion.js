@@ -1,17 +1,8 @@
-// TEE MATRIX - Premium High-Fashion Motion Controller (Motion + Dynamic Fallbacks)
+// TEE MATRIX - Premium High-Fashion Motion Controller (Motion + GSAP)
 
-let cachedMotionModule = null;
-
-async function getMotionModule() {
-  if (cachedMotionModule !== null) return cachedMotionModule;
-  try {
-    cachedMotionModule = await import('https://cdn.jsdelivr.net/npm/motion@11.11.17/+esm');
-    return cachedMotionModule;
-  } catch (e) {
-    console.warn('Motion CDN module blocked or unreachable, using native web API fallback:', e);
-    cachedMotionModule = false;
-    return false;
-  }
+function getMotionModule() {
+  if (typeof Motion !== 'undefined') return Motion;
+  return false;
 }
 
 export class FashionMotionController {
@@ -62,7 +53,7 @@ export class FashionMotionController {
     }
   }
 
-  async initSmoothScroll() {
+  initSmoothScroll() {
     window.scrollTo(0, 0);
 
     const updateProgress = (p) => {
@@ -72,7 +63,7 @@ export class FashionMotionController {
       }
     };
 
-    const motion = await getMotionModule();
+    const motion = getMotionModule();
     if (motion && typeof motion.scroll === 'function') {
       motion.scroll(updateProgress);
     } else {
@@ -306,6 +297,8 @@ export class FashionMotionController {
       window.addEventListener('scroll', handleNativeScroll);
       handleNativeScroll();
     }
+  }
+
   stop() {}
   start() {}
 
