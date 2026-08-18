@@ -292,6 +292,36 @@ export class FashionMotionController {
 
     let lastIndex = -1;
 
+    // Image Load Detection: Refresh ScrollTrigger once all section images finish loading
+    let pendingImages = 0;
+    slides.forEach(img => {
+      if (!img.complete || img.naturalHeight === 0) {
+        pendingImages++;
+        img.addEventListener('load', () => {
+          pendingImages--;
+          if (pendingImages === 0 && typeof ScrollTrigger !== 'undefined') {
+            ScrollTrigger.refresh();
+          }
+        }, { once: true });
+        img.addEventListener('error', () => {
+          pendingImages--;
+          if (pendingImages === 0 && typeof ScrollTrigger !== 'undefined') {
+            ScrollTrigger.refresh();
+          }
+        }, { once: true });
+      }
+    });
+
+    if (pendingImages === 0 && typeof ScrollTrigger !== 'undefined') {
+      setTimeout(() => ScrollTrigger.refresh(), 100);
+    }
+
+    window.addEventListener('load', () => {
+      if (typeof ScrollTrigger !== 'undefined') {
+        ScrollTrigger.refresh();
+      }
+    }, { once: true });
+
     // Signature 3D Arrival Perspective Sequence: Played once as section enters viewport
     if (typeof gsap !== 'undefined') {
       slides.forEach(slide => {
@@ -308,6 +338,7 @@ export class FashionMotionController {
         trigger: container,
         start: 'top 75%',
         once: true,
+        invalidateOnRefresh: true,
         onEnter: () => {
           slides.forEach(slide => {
             gsap.to(slide, {
@@ -329,6 +360,7 @@ export class FashionMotionController {
       end: '+=200%',
       pin: true,
       scrub: 0.8,
+      invalidateOnRefresh: true,
       onUpdate: (self) => {
         const index = Math.min(slides.length - 1, Math.floor(self.progress * slides.length));
         

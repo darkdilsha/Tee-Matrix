@@ -112,10 +112,10 @@ export class LandingPage {
         <!-- Section 4: Pinned Sticky Collection Showcase (Multi-Look Editorial Scroll) -->
         <section class="pinned-section-container" id="pinnedCollectionContainer">
           <div class="pinned-sticky-view">
-            <!-- Crossfading Campaign Slides -->
-            <img src="assets/tee_acid_wash.jpg" class="pinned-bg-slide active" alt="Look 01" />
-            <img src="assets/story_campaign.jpg" class="pinned-bg-slide" alt="Look 02" />
-            <img src="assets/tee_black_heavy.jpg" class="pinned-bg-slide" alt="Look 03" />
+            <!-- Crossfading Campaign Slides with Explicit Dimensions & Reserved Aspect Ratio -->
+            <img src="assets/tee_acid_wash.jpg" width="1920" height="1080" style="aspect-ratio: 16/9; width: 100%; height: 100%; object-fit: cover;" class="pinned-bg-slide active" alt="Look 01" />
+            <img src="assets/story_campaign.jpg" width="1920" height="1080" style="aspect-ratio: 16/9; width: 100%; height: 100%; object-fit: cover;" class="pinned-bg-slide" alt="Look 02" />
+            <img src="assets/tee_black_heavy.jpg" width="1920" height="1080" style="aspect-ratio: 16/9; width: 100%; height: 100%; object-fit: cover;" class="pinned-bg-slide" alt="Look 03" />
 
             <div style="position: absolute; inset: 0; background: linear-gradient(to right, rgba(8,8,8,0.88) 0%, rgba(8,8,8,0.4) 65%, transparent 100%);"></div>
 
