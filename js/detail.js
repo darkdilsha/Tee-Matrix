@@ -59,16 +59,22 @@ export class ProductDetailModal {
         </button>
 
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2.5rem; margin-bottom: 2.5rem;">
-          <!-- Gallery View -->
+          <!-- Gallery View with Draggable Swipe Carousel -->
           <div>
-            <div style="position: relative; aspect-ratio: 3/4; overflow: hidden; background: #111; margin-bottom: 1rem; border: 1px solid var(--border-color); border-radius: 8px;" id="mainImgContainer">
-              <img src="${this.activeImg}" id="detailMainImg" alt="${product.name}" style="width: 100%; height: 100%; object-fit: cover; transition: opacity 0.2s ease;" />
+            <div style="position: relative; aspect-ratio: 3/4; overflow: hidden; background: #111; margin-bottom: 1rem; border: 1px solid var(--border-color); border-radius: 8px; user-select: none;" id="mainImgContainer">
+              <div id="detailGalleryTrack" style="display: flex; height: 100%; width: ${productImages.length * 100}%; cursor: grab; touch-action: pan-y; will-change: transform;">
+                ${productImages.map(imgSrc => `
+                  <div style="width: ${100 / productImages.length}%; height: 100%; flex-shrink: 0;">
+                    <img src="${imgSrc}" style="width: 100%; height: 100%; object-fit: cover; pointer-events: none;" alt="${product.name}" />
+                  </div>
+                `).join('')}
+              </div>
             </div>
 
             <!-- Multi-Photo Gallery Thumbnails -->
             <div style="display: flex; gap: 0.6rem; overflow-x: auto; padding-bottom: 0.5rem;">
-              ${productImages.map((imgSrc) => `
-                <img src="${imgSrc}" class="thumb-img ${imgSrc === this.activeImg ? 'active' : ''}" data-src="${imgSrc}" style="width: 70px; height: 90px; object-fit: cover; border-radius: 4px; border: ${imgSrc === this.activeImg ? '2px solid #ffffff' : '1px solid var(--border-color)'}; cursor: pointer; opacity: ${imgSrc === this.activeImg ? '1' : '0.65'}; transition: all 0.2s ease; flex-shrink: 0;" />
+              ${productImages.map((imgSrc, idx) => `
+                <img src="${imgSrc}" class="thumb-img ${imgSrc === this.activeImg ? 'active' : ''}" data-index="${idx}" data-src="${imgSrc}" style="width: 70px; height: 90px; object-fit: cover; border-radius: 4px; border: ${imgSrc === this.activeImg ? '2px solid #ffffff' : '1px solid var(--border-color)'}; cursor: pointer; opacity: ${imgSrc === this.activeImg ? '1' : '0.65'}; transition: all 0.2s ease; flex-shrink: 0;" />
               `).join('')}
             </div>
           </div>
@@ -172,23 +178,64 @@ export class ProductDetailModal {
       if (e.target === backdrop) this.close();
     });
 
-    // Gallery Thumbnails
-    document.querySelectorAll('.thumb-img').forEach(thumb => {
+    // GSAP Draggable Product Gallery Carousel Integration
+    const track = document.getElementById('detailGalleryTrack');
+    const container = document.getElementById('mainImgContainer');
+    const thumbs = document.querySelectorAll('.thumb-img');
+    const totalSlides = thumbs.length;
+
+    const updateActiveThumb = (index) => {
+      thumbs.forEach((t, i) => {
+        t.style.opacity = i === index ? '1' : '0.65';
+        t.style.border = i === index ? '2px solid #ffffff' : '1px solid var(--border-color)';
+      });
+    };
+
+    let draggableInstance = null;
+
+    if (track && container && typeof Draggable !== 'undefined') {
+      const slideWidth = container.clientWidth;
+      const maxDrag = -slideWidth * (totalSlides - 1);
+
+      draggableInstance = Draggable.create(track, {
+        type: 'x',
+        bounds: { minX: maxDrag, maxX: 0 },
+        inertia: true,
+        snap: (endValue) => {
+          const index = Math.round(Math.abs(endValue) / slideWidth);
+          return -index * slideWidth;
+        },
+        onDragEnd: function () {
+          const index = Math.min(totalSlides - 1, Math.max(0, Math.round(Math.abs(this.x) / slideWidth)));
+          updateActiveThumb(index);
+        },
+        onThrowComplete: function () {
+          const index = Math.min(totalSlides - 1, Math.max(0, Math.round(Math.abs(this.x) / slideWidth)));
+          updateActiveThumb(index);
+        }
+      })[0];
+    }
+
+    // Gallery Thumbnail Direct Selection
+    thumbs.forEach(thumb => {
       thumb.addEventListener('click', () => {
-        document.querySelectorAll('.thumb-img').forEach(t => {
-          t.style.opacity = '0.65';
-          t.style.border = '1px solid var(--border-color)';
-        });
-        thumb.style.opacity = '1';
-        thumb.style.border = '2px solid #ffffff';
-        const src = thumb.getAttribute('data-src');
-        const mainImg = document.getElementById('detailMainImg');
-        if (mainImg) {
-          mainImg.style.opacity = '0.4';
-          setTimeout(() => {
-            mainImg.src = src;
-            mainImg.style.opacity = '1';
-          }, 150);
+        const idx = parseInt(thumb.getAttribute('data-index') || '0', 10);
+        updateActiveThumb(idx);
+
+        if (container && track) {
+          const slideWidth = container.clientWidth;
+          const targetX = -idx * slideWidth;
+
+          if (typeof gsap !== 'undefined') {
+            gsap.to(track, {
+              x: targetX,
+              duration: 0.35,
+              ease: 'power2.out',
+              onUpdate: () => draggableInstance && draggableInstance.update()
+            });
+          } else {
+            track.style.transform = `translate3d(${targetX}px, 0, 0)`;
+          }
         }
       });
     });

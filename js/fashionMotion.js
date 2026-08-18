@@ -1,8 +1,7 @@
-// TEE MATRIX - Premium High-Fashion Motion & Smooth Scroll Controller (Lenis + GSAP)
+// TEE MATRIX - Premium High-Fashion Motion Controller (Motion + GSAP)
 
 export class FashionMotionController {
   constructor() {
-    this.lenis = null;
     this.isMobile = window.innerWidth <= 768 || 'ontouchstart' in window;
     this.isReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.EASE_PREMIUM = 'power3.out'; // cubic-bezier(0.16, 1, 0.3, 1)
@@ -50,218 +49,154 @@ export class FashionMotionController {
   }
 
   initSmoothScroll() {
-    if (typeof Lenis === 'undefined') return;
-
-    this.lenis = new Lenis({
-      duration: 1.2,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      orientation: 'vertical',
-      gestureOrientation: 'vertical',
-      smoothWheel: true,
-      wheelMultiplier: 0.9,
-      touchMultiplier: 1.5,
-    });
-
-    // Reset Lenis internal scroll position to 0 immediately on initialization
-    this.lenis.scrollTo(0, { immediate: true });
     window.scrollTo(0, 0);
 
-    // Perfect Sync: Lenis scroll updates connected with GSAP ScrollTrigger ticker
-    if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') {
-      gsap.registerPlugin(ScrollTrigger);
-
-      this.lenis.on('scroll', ScrollTrigger.update);
-
-      gsap.ticker.add((time) => {
-        this.lenis.raf(time * 1000);
+    // Hardware-Accelerated Vertical Scroll Progress Indicator via Motion.scroll()
+    if (window.Motion && typeof window.Motion.scroll === 'function') {
+      window.Motion.scroll((progress) => {
+        const fill = document.getElementById('scrollProgressFill');
+        if (fill) {
+          fill.style.height = `${Math.min(100, Math.max(0, progress * 100))}%`;
+        }
       });
-
-      gsap.ticker.lagSmoothing(0);
     } else {
-      const raf = (time) => {
-        this.lenis.raf(time);
-        requestAnimationFrame(raf);
-      };
-      requestAnimationFrame(raf);
+      window.addEventListener('scroll', () => {
+        const fill = document.getElementById('scrollProgressFill');
+        if (fill) {
+          const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
+          const progress = totalHeight > 0 ? (window.scrollY / totalHeight) * 100 : 0;
+          fill.style.height = `${Math.min(100, Math.max(0, progress))}%`;
+        }
+      });
     }
-
-    // Update vertical scroll progress indicator
-    this.lenis.on('scroll', (e) => {
-      const fill = document.getElementById('scrollProgressFill');
-      if (fill) {
-        const progress = (e.scroll / (e.limit || 1)) * 100;
-        fill.style.height = `${Math.min(100, Math.max(0, progress))}%`;
-      }
-    });
   }
 
   runIntroSequence() {
     let loader = document.getElementById('pageLoader');
     if (!loader) {
-      loader = document.createElement('div');
-      loader.id = 'pageLoader';
-      loader.className = 'page-loader';
-      loader.innerHTML = `
-        <div class="page-loader-brand" id="loaderBrand">TEE MATRIX</div>
-        <div class="page-loader-line" id="loaderLine"></div>
-      `;
-      document.body.appendChild(loader);
-    }
-
-    if (this.isReducedMotion) {
-      loader.remove();
-      this.initLandingAnimations();
+      this.initScrollTriggers();
       return;
     }
 
-    // GSAP Preloader Sequence - Smooth GPU Transforms Only
+    const counter = document.getElementById('loaderCounter');
+    const bar = document.getElementById('loaderBar');
+    let obj = { val: 0 };
+
     if (typeof gsap !== 'undefined') {
-      const tl = gsap.timeline();
-      tl.to('#loaderBrand', { opacity: 1, y: 0, duration: 0.8, ease: this.EASE_PREMIUM })
-        .to('#loaderLine', { scaleX: 1, duration: 0.7, ease: 'power2.inOut' })
-        .to('#pageLoader', { y: '-100%', duration: 0.9, ease: 'power4.inOut', delay: 0.2, onComplete: () => {
-          loader.remove();
-          this.initLandingAnimations();
-        }});
+      gsap.to(obj, {
+        val: 100,
+        duration: 1.2,
+        ease: 'power2.inOut',
+        onUpdate: () => {
+          const progress = Math.round(obj.val);
+          if (counter) counter.innerText = `${progress}%`;
+          if (bar) bar.style.width = `${progress}%`;
+        },
+        onComplete: () => {
+          gsap.to(loader, {
+            yPercent: -100,
+            duration: 0.8,
+            ease: this.EASE_PREMIUM,
+            onComplete: () => {
+              loader.remove();
+              this.initScrollTriggers();
+            }
+          });
+        }
+      });
     } else {
+      if (counter) counter.innerText = `100%`;
+      if (bar) bar.style.width = `100%`;
       setTimeout(() => {
-        loader.style.transform = 'translateY(-100%)';
-        setTimeout(() => {
-          loader.remove();
-          this.initLandingAnimations();
-        }, 900);
-      }, 1000);
+        loader.remove();
+        this.initScrollTriggers();
+      }, 500);
     }
   }
 
-  initLandingAnimations() {
-    if (typeof gsap === 'undefined' || this.isReducedMotion) return;
-
-    // Clean up existing ScrollTrigger instances before initializing
-    if (typeof ScrollTrigger !== 'undefined') {
-      ScrollTrigger.getAll().forEach(st => st.kill());
-    }
-
-    // 1. Hero Entrance - Subtle, Deliberate Transforms (No blur, no heavy jumps)
+  initScrollTriggers() {
+    // 1. Hero Reveal Animation
     const heroBg = document.getElementById('heroBg');
-    if (heroBg) {
-      gsap.fromTo(heroBg, 
-        { opacity: 0.5, scale: 1.05 },
+    if (heroBg && typeof gsap !== 'undefined') {
+      gsap.fromTo(heroBg,
+        { scale: 1.15, opacity: 0.8 },
         { opacity: 1.0, scale: 1.0, duration: 1.8, ease: this.EASE_PREMIUM }
       );
     }
 
-    // Hero Text Sequenced Reveal (~150ms delay between elements)
-    const heroTl = gsap.timeline({ delay: 0.2 });
+    if (typeof gsap !== 'undefined') {
+      const heroTl = gsap.timeline({ delay: 0.2 });
 
-    heroTl.fromTo('.hero-subtitle', 
-      { y: 20, opacity: 0 },
-      { y: 0, opacity: 1, duration: 1.0, ease: this.EASE_PREMIUM }
-    )
-    .fromTo('.hero-title', 
-      { y: 28, opacity: 0 },
-      { y: 0, opacity: 1, duration: 1.1, ease: this.EASE_PREMIUM },
-      '-=0.85'
-    )
-    .fromTo('.hero-desc', 
-      { y: 20, opacity: 0 },
-      { y: 0, opacity: 1, duration: 1.0, ease: this.EASE_PREMIUM },
-      '-=0.85'
-    )
-    .fromTo('#heroShopBtn', 
-      { y: 16, opacity: 0 },
-      { y: 0, opacity: 1, duration: 0.9, ease: this.EASE_PREMIUM },
-      '-=0.80'
-    );
+      heroTl.fromTo('.hero-subtitle', 
+        { y: 20, opacity: 0 },
+        { y: 0, opacity: 1, duration: 1.0, ease: this.EASE_PREMIUM }
+      )
+      .fromTo('.hero-title', 
+        { y: 28, opacity: 0 },
+        { y: 0, opacity: 1, duration: 1.1, ease: this.EASE_PREMIUM },
+        '-=0.85'
+      )
+      .fromTo('.hero-desc', 
+        { y: 20, opacity: 0 },
+        { y: 0, opacity: 1, duration: 1.0, ease: this.EASE_PREMIUM },
+        '-=0.85'
+      )
+      .fromTo('#heroShopBtn', 
+        { y: 16, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.9, ease: this.EASE_PREMIUM },
+        '-=0.80'
+      );
+    }
 
-    // 2. Performance-Optimized Parallax (Max 1 layer per section, ~0.9x subtle scroll speed)
-    if (typeof ScrollTrigger !== 'undefined' && !this.isMobile) {
-      if (heroBg) {
-        gsap.to(heroBg, {
-          yPercent: 8, // Subtle displacement
-          ease: 'none',
-          scrollTrigger: {
-            trigger: '#hero',
-            start: 'top top',
-            end: 'bottom top',
-            scrub: true
-          }
-        });
+    // 2. Parallax Background Layers using Motion.scroll()
+    if (!this.isMobile && window.Motion && typeof window.Motion.scroll === 'function') {
+      const heroSection = document.getElementById('hero');
+      if (heroBg && heroSection) {
+        window.Motion.scroll(
+          window.Motion.animate(heroBg, { transform: ['translateY(0px)', 'translateY(60px)'] }),
+          { target: heroSection, offset: ['start start', 'end start'] }
+        );
       }
 
       const storyBg = document.getElementById('storyBg');
-      if (storyBg) {
-        gsap.to(storyBg, {
-          yPercent: 8,
-          ease: 'none',
-          scrollTrigger: {
-            trigger: '#story',
-            start: 'top bottom',
-            end: 'bottom top',
-            scrub: true
-          }
-        });
+      const storySection = document.getElementById('story');
+      if (storyBg && storySection) {
+        window.Motion.scroll(
+          window.Motion.animate(storyBg, { transform: ['translateY(0px)', 'translateY(60px)'] }),
+          { target: storySection, offset: ['start end', 'end start'] }
+        );
       }
     }
 
-    // 3. Section Revealer - Played ONCE per section, consistent motion language (fade + subtle rise)
-    if (typeof ScrollTrigger !== 'undefined') {
+    // 3. Entrance Reveals using Motion.inView()
+    if (window.Motion && typeof window.Motion.inView === 'function') {
       document.querySelectorAll('.editorial-section').forEach((section) => {
-        const tag = section.querySelector('.section-tag');
-        const title = section.querySelector('.section-title');
-        const cards = section.querySelectorAll('.product-card');
+        window.Motion.inView(section, () => {
+          const tag = section.querySelector('.section-tag');
+          const title = section.querySelector('.section-title');
+          const cards = section.querySelectorAll('.product-card');
 
-        // Combined section reveal timeline playing once
-        const secTl = gsap.timeline({
-          scrollTrigger: {
-            trigger: section,
-            start: 'top 85%',
-            toggleActions: 'play none none none', // Play ONCE
-            once: true
+          if (tag) window.Motion.animate(tag, { opacity: [0, 1], y: [16, 0] }, { duration: 0.8 });
+          if (title) window.Motion.animate(title, { opacity: [0, 1], y: [24, 0] }, { duration: 1.0 });
+          if (cards.length > 0) {
+            cards.forEach((card, i) => {
+              window.Motion.animate(card, { opacity: [0, 1], y: [28, 0] }, { duration: 1.0, delay: i * 0.1 });
+            });
           }
         });
-
-        if (tag) {
-          secTl.fromTo(tag, 
-            { y: 16, opacity: 0 }, 
-            { y: 0, opacity: 1, duration: 0.8, ease: this.EASE_PREMIUM }
-          );
-        }
-
-        if (title) {
-          secTl.fromTo(title,
-            { y: 24, opacity: 0 },
-            { y: 0, opacity: 1, duration: 1.0, ease: this.EASE_PREMIUM },
-            tag ? '-=0.65' : 0
-          );
-        }
-
-        if (cards.length > 0) {
-          secTl.fromTo(cards,
-            { y: 28, opacity: 0 },
-            {
-              y: 0,
-              opacity: 1,
-              duration: 1.0,
-              stagger: 0.1, // Controlled stagger
-              ease: this.EASE_PREMIUM
-            },
-            title ? '-=0.75' : 0
-          );
-        }
       });
-
-      // 4. Pinned Collection Showcase with Signature 3D Arrival Moment
-      this.initPinnedCollectionSection();
-      
-      // 5. Desktop 3D Card Tilt-on-Hover
-      this.init3DCardTilt();
     }
+
+    // 4. Pinned Collection Showcase with Motion.scroll() & native position: sticky
+    this.initPinnedCollectionSection();
+    
+    // 5. Desktop 3D Card Tilt-on-Hover
+    this.init3DCardTilt();
   }
 
   initPinnedCollectionSection() {
     const container = document.getElementById('pinnedCollectionContainer');
-    if (!container || typeof ScrollTrigger === 'undefined') return;
+    if (!container) return;
 
     const slides = container.querySelectorAll('.pinned-bg-slide');
     const tagEl = document.getElementById('pinnedTag');
@@ -292,37 +227,7 @@ export class FashionMotionController {
 
     let lastIndex = -1;
 
-    // Image Load Detection: Refresh ScrollTrigger once all section images finish loading
-    let pendingImages = 0;
-    slides.forEach(img => {
-      if (!img.complete || img.naturalHeight === 0) {
-        pendingImages++;
-        img.addEventListener('load', () => {
-          pendingImages--;
-          if (pendingImages === 0 && typeof ScrollTrigger !== 'undefined') {
-            ScrollTrigger.refresh();
-          }
-        }, { once: true });
-        img.addEventListener('error', () => {
-          pendingImages--;
-          if (pendingImages === 0 && typeof ScrollTrigger !== 'undefined') {
-            ScrollTrigger.refresh();
-          }
-        }, { once: true });
-      }
-    });
-
-    if (pendingImages === 0 && typeof ScrollTrigger !== 'undefined') {
-      setTimeout(() => ScrollTrigger.refresh(), 100);
-    }
-
-    window.addEventListener('load', () => {
-      if (typeof ScrollTrigger !== 'undefined') {
-        ScrollTrigger.refresh();
-      }
-    }, { once: true });
-
-    // Signature 3D Arrival Perspective Sequence: Played once as section enters viewport
+    // 3D Perspective Arrival Sequence on Entry
     if (typeof gsap !== 'undefined') {
       slides.forEach(slide => {
         gsap.set(slide, {
@@ -334,12 +239,8 @@ export class FashionMotionController {
         });
       });
 
-      ScrollTrigger.create({
-        trigger: container,
-        start: 'top 75%',
-        once: true,
-        invalidateOnRefresh: true,
-        onEnter: () => {
+      if (window.Motion && typeof window.Motion.inView === 'function') {
+        window.Motion.inView(container, () => {
           slides.forEach(slide => {
             gsap.to(slide, {
               scale: 1.0,
@@ -350,62 +251,6 @@ export class FashionMotionController {
               ease: this.EASE_PREMIUM
             });
           });
-        }
-      });
-    }
-
-    ScrollTrigger.create({
-      trigger: container,
-      start: 'top top',
-      end: 'bottom bottom',
-      scrub: true,
-      invalidateOnRefresh: true,
-      onUpdate: (self) => {
-        const index = Math.min(slides.length - 1, Math.floor(self.progress * slides.length));
-        
-        slides.forEach((slide, idx) => {
-          if (idx === index) {
-            slide.classList.add('active');
-          } else {
-            slide.classList.remove('active');
-          }
-        });
-
-        if (index !== lastIndex && lookData[index]) {
-          lastIndex = index;
-          const data = lookData[index];
-
-          // Crossfade text elements smoothly
-          const textEls = [tagEl, titleEl, subtitleEl, priceEl].filter(Boolean);
-          textEls.forEach(el => el.style.opacity = '0.2');
-
-          setTimeout(() => {
-            if (tagEl) tagEl.innerHTML = data.tag;
-            if (titleEl) titleEl.innerText = data.title;
-            if (subtitleEl) subtitleEl.innerText = data.desc;
-            if (priceEl) priceEl.innerText = data.price;
-
-            textEls.forEach(el => el.style.opacity = '1');
-          }, 150);
-        }
-      }
-    });
-  }
-
-  scrollTo(target, options = {}) {
-    if (this.lenis) {
-      this.lenis.scrollTo(target, options);
-    } else {
-      const el = typeof target === 'string' ? document.querySelector(target) : target;
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth' });
-      } else if (typeof target === 'number') {
-        window.scrollTo({ top: target, behavior: 'smooth' });
-      }
-    }
-  }
-
-  stop() {
     this.lenis?.stop();
   }
 
@@ -478,7 +323,19 @@ export class FashionMotionController {
         wipe.classList.remove('active');
       }, 600);
     }, 600);
+  scrollTo(target, options = {}) {
+    if (typeof target === 'number') {
+      window.scrollTo({ top: target, behavior: options.immediate ? 'instant' : 'smooth' });
+    } else {
+      const el = typeof target === 'string' ? document.querySelector(target) : target;
+      if (el) {
+        el.scrollIntoView({ behavior: options.immediate ? 'instant' : 'smooth' });
+      }
+    }
   }
+
+  stop() {}
+  start() {}
 }
 
 export const fashionMotion = new FashionMotionController();

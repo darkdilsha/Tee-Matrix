@@ -315,12 +315,40 @@ export class CatalogPage {
   }
 
   attachEvents(reRenderCallback) {
+    const renderWithFlip = () => {
+      const cards = document.querySelectorAll('.store-container .product-card');
+      if (cards.length > 0 && typeof Flip !== 'undefined') {
+        const state = Flip.getState(cards);
+        reRenderCallback();
+        const updatedCards = document.querySelectorAll('.store-container .product-card');
+        Flip.from(state, {
+          duration: 0.4,
+          ease: 'power2.out',
+          absolute: true,
+          fade: true,
+          scale: true,
+          onEnter: elements => {
+            if (typeof gsap !== 'undefined') {
+              gsap.fromTo(elements, { opacity: 0, scale: 0.85 }, { opacity: 1, scale: 1, duration: 0.35, ease: 'power2.out' });
+            }
+          },
+          onLeave: elements => {
+            if (typeof gsap !== 'undefined') {
+              gsap.to(elements, { opacity: 0, scale: 0.85, duration: 0.25, ease: 'power2.in' });
+            }
+          }
+        });
+      } else {
+        reRenderCallback();
+      }
+    };
+
     // Search input
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {
       searchInput.addEventListener('input', (e) => {
         this.searchQuery = e.target.value;
-        reRenderCallback();
+        renderWithFlip();
       });
     }
 
@@ -329,7 +357,7 @@ export class CatalogPage {
       btn.addEventListener('click', () => {
         this.showOnlyWishlist = false;
         this.currentCategory = btn.getAttribute('data-category');
-        reRenderCallback();
+        renderWithFlip();
       });
     });
 
@@ -338,19 +366,19 @@ export class CatalogPage {
     if (sortSelect) {
       sortSelect.addEventListener('change', (e) => {
         this.currentSort = e.target.value;
-        reRenderCallback();
+        renderWithFlip();
       });
     }
 
     // Open Filter Sheet
     document.getElementById('openFilterBtn')?.addEventListener('click', () => {
-      this.openFilterSheet(reRenderCallback);
+      this.openFilterSheet(renderWithFlip);
     });
 
     // Clear wishlist filter
     document.getElementById('clearWishlistFilterBtn')?.addEventListener('click', () => {
       this.showOnlyWishlist = false;
-      reRenderCallback();
+      renderWithFlip();
     });
 
     // Wishlist Heart Buttons
@@ -358,7 +386,7 @@ export class CatalogPage {
       btn.addEventListener('click', (e) => {
         const id = btn.getAttribute('data-wishlist-id');
         this.toggleWishlist(id, e);
-        reRenderCallback();
+        renderWithFlip();
       });
     });
 

@@ -1,19 +1,31 @@
-/* Custom Scrollbar & Smooth Scroll (Lenis) Integration */
-html.lenis, html.lenis body {
-  height: auto;
+/* Native Smooth Scroll & Micro-Interactions */
+html {
+  scroll-behavior: smooth;
 }
-.lenis.lenis-smooth {
-  scroll-behavior: auto !important;
-}
-.lenis.lenis-smooth [data-lenis-prevent],
+
 .modal-content,
 .mobile-nav-drawer,
 .cart-drawer,
 .category-scroll-row {
   overscroll-behavior: contain;
 }
-.lenis.lenis-stopped {
-  overflow: hidden;
+
+/* Tactile Press/Tap Feedback (Site-wide Micro-Interactions) */
+.btn-primary:active,
+.btn-secondary:active,
+.pill-btn:active,
+.magnetic-btn:active,
+.card-wishlist-btn:active,
+.size-btn:active,
+.otp-box:active,
+.icon-btn:active {
+  transform: scale(0.96) !important;
+  transition: transform 0.1s ease !important;
+}
+
+.product-card:active {
+  transform: scale(0.98) !important;
+  transition: transform 0.1s ease !important;
 }
 
 /* Vertical Scroll Progress Bar */
@@ -622,6 +634,17 @@ button {
 .product-card:hover {
   border-color: var(--border-hover);
   box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+}
+
+/* Refined Hover Depth on Shop Page Cards */
+.store-container .product-card {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.store-container .product-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.65);
+  border-color: var(--border-hover);
 }
 
 .card-img-wrapper {
