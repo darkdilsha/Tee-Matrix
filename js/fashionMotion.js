@@ -6,9 +6,20 @@ export class FashionMotionController {
     this.isMobile = window.innerWidth <= 768 || 'ontouchstart' in window;
     this.isReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.EASE_PREMIUM = 'power3.out'; // cubic-bezier(0.16, 1, 0.3, 1)
+
+    // Force browser to disable automatic scroll restoration on reload
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+    window.scrollTo(0, 0);
   }
 
   init() {
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+    window.scrollTo(0, 0);
+
     this.createGlobalElements();
     this.initSmoothScroll();
     
@@ -50,6 +61,10 @@ export class FashionMotionController {
       wheelMultiplier: 0.9,
       touchMultiplier: 1.5,
     });
+
+    // Reset Lenis internal scroll position to 0 immediately on initialization
+    this.lenis.scrollTo(0, { immediate: true });
+    window.scrollTo(0, 0);
 
     // Perfect Sync: Lenis scroll updates connected with GSAP ScrollTrigger ticker
     if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') {

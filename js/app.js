@@ -10,6 +10,11 @@ import { fashionMotion } from './fashionMotion.js';
 
 class App {
   constructor() {
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+    window.scrollTo(0, 0);
+
     this.currentView = 'landing'; // 'landing' | 'shop' | 'admin'
     this.landingPage = new LandingPage(() => this.setView('shop'));
     this.catalogPage = new CatalogPage();
