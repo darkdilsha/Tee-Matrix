@@ -1,5 +1,18 @@
-// TEE MATRIX - Premium High-Fashion Motion Controller (Motion + GSAP)
-import { scroll, animate, inView } from 'https://cdn.jsdelivr.net/npm/motion@11.11.17/+esm';
+// TEE MATRIX - Premium High-Fashion Motion Controller (Motion + Dynamic Fallbacks)
+
+let cachedMotionModule = null;
+
+async function getMotionModule() {
+  if (cachedMotionModule !== null) return cachedMotionModule;
+  try {
+    cachedMotionModule = await import('https://cdn.jsdelivr.net/npm/motion@11.11.17/+esm');
+    return cachedMotionModule;
+  } catch (e) {
+    console.warn('Motion CDN module blocked or unreachable, using native web API fallback:', e);
+    cachedMotionModule = false;
+    return false;
+  }
+}
 
 export class FashionMotionController {
   constructor() {
@@ -49,25 +62,24 @@ export class FashionMotionController {
     }
   }
 
-  initSmoothScroll() {
+  async initSmoothScroll() {
     window.scrollTo(0, 0);
 
-    // Hardware-Accelerated Vertical Scroll Progress Indicator via Motion scroll()
-    if (typeof scroll === 'function') {
-      scroll((progress) => {
-        const fill = document.getElementById('scrollProgressFill');
-        if (fill) {
-          fill.style.height = `${Math.min(100, Math.max(0, progress * 100))}%`;
-        }
-      });
+    const updateProgress = (p) => {
+      const fill = document.getElementById('scrollProgressFill');
+      if (fill) {
+        fill.style.height = `${Math.min(100, Math.max(0, p * 100))}%`;
+      }
+    };
+
+    const motion = await getMotionModule();
+    if (motion && typeof motion.scroll === 'function') {
+      motion.scroll(updateProgress);
     } else {
       window.addEventListener('scroll', () => {
-        const fill = document.getElementById('scrollProgressFill');
-        if (fill) {
-          const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
-          const progress = totalHeight > 0 ? (window.scrollY / totalHeight) * 100 : 0;
-          fill.style.height = `${Math.min(100, Math.max(0, progress))}%`;
-        }
+        const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
+        const progress = totalHeight > 0 ? (window.scrollY / totalHeight) * 100 : 0;
+        updateProgress(progress);
       });
     }
   }
@@ -115,7 +127,7 @@ export class FashionMotionController {
     }
   }
 
-  initScrollTriggers() {
+  async initScrollTriggers() {
     // 1. Hero Reveal Animation
     const heroBg = document.getElementById('heroBg');
     if (heroBg && typeof gsap !== 'undefined') {
@@ -149,12 +161,14 @@ export class FashionMotionController {
       );
     }
 
-    // 2. Parallax Background Layers using Motion scroll()
-    if (!this.isMobile && typeof scroll === 'function' && typeof animate === 'function') {
+    const motion = await getMotionModule();
+
+    // 2. Parallax Background Layers
+    if (!this.isMobile && motion && typeof motion.scroll === 'function' && typeof motion.animate === 'function') {
       const heroSection = document.getElementById('hero');
       if (heroBg && heroSection) {
-        scroll(
-          animate(heroBg, { transform: ['translateY(0px)', 'translateY(60px)'] }),
+        motion.scroll(
+          motion.animate(heroBg, { transform: ['translateY(0px)', 'translateY(60px)'] }),
           { target: heroSection, offset: ['start start', 'end start'] }
         );
       }
@@ -162,40 +176,66 @@ export class FashionMotionController {
       const storyBg = document.getElementById('storyBg');
       const storySection = document.getElementById('story');
       if (storyBg && storySection) {
-        scroll(
-          animate(storyBg, { transform: ['translateY(0px)', 'translateY(60px)'] }),
+        motion.scroll(
+          motion.animate(storyBg, { transform: ['translateY(0px)', 'translateY(60px)'] }),
           { target: storySection, offset: ['start end', 'end start'] }
         );
       }
     }
 
-    // 3. Entrance Reveals using Motion inView()
-    if (typeof inView === 'function' && typeof animate === 'function') {
+    // 3. Entrance Reveals
+    if (motion && typeof motion.inView === 'function' && typeof motion.animate === 'function') {
       document.querySelectorAll('.editorial-section').forEach((section) => {
-        inView(section, () => {
+        motion.inView(section, () => {
           const tag = section.querySelector('.section-tag');
           const title = section.querySelector('.section-title');
           const cards = section.querySelectorAll('.product-card');
 
-          if (tag) animate(tag, { opacity: [0, 1], transform: ['translateY(16px)', 'translateY(0px)'] }, { duration: 0.8 });
-          if (title) animate(title, { opacity: [0, 1], transform: ['translateY(24px)', 'translateY(0px)'] }, { duration: 1.0 });
+          if (tag) motion.animate(tag, { opacity: [0, 1], transform: ['translateY(16px)', 'translateY(0px)'] }, { duration: 0.8 });
+          if (title) motion.animate(title, { opacity: [0, 1], transform: ['translateY(24px)', 'translateY(0px)'] }, { duration: 1.0 });
           if (cards.length > 0) {
             cards.forEach((card, i) => {
-              animate(card, { opacity: [0, 1], transform: ['translateY(28px)', 'translateY(0px)'] }, { duration: 1.0, delay: i * 0.1 });
+              motion.animate(card, { opacity: [0, 1], transform: ['translateY(28px)', 'translateY(0px)'] }, { duration: 1.0, delay: i * 0.1 });
             });
           }
         });
       });
+    } else {
+      // Robust IntersectionObserver Fallback
+      if (typeof IntersectionObserver !== 'undefined') {
+        const observer = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              const sec = entry.target;
+              const tag = sec.querySelector('.section-tag');
+              const title = sec.querySelector('.section-title');
+              const cards = sec.querySelectorAll('.product-card');
+
+              if (tag) { tag.style.opacity = '1'; tag.style.transform = 'translateY(0)'; }
+              if (title) { title.style.opacity = '1'; title.style.transform = 'translateY(0)'; }
+              cards.forEach(c => { c.style.opacity = '1'; c.style.transform = 'translateY(0)'; });
+              observer.unobserve(sec);
+            }
+          });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.editorial-section').forEach(s => observer.observe(s));
+      } else {
+        document.querySelectorAll('.editorial-section .section-tag, .editorial-section .section-title, .editorial-section .product-card').forEach(el => {
+          el.style.opacity = '1';
+          el.style.transform = 'none';
+        });
+      }
     }
 
-    // 4. Pinned Collection Showcase with Motion.scroll() & native position: sticky
-    this.initPinnedCollectionSection();
-    
+    // 4. Pinned Collection Showcase
+    this.initPinnedCollectionSection(motion);
+
     // 5. Desktop 3D Card Tilt-on-Hover
     this.init3DCardTilt();
   }
 
-  initPinnedCollectionSection() {
+  async initPinnedCollectionSection(motionInput) {
     const container = document.getElementById('pinnedCollectionContainer');
     if (!container) return;
 
@@ -239,56 +279,50 @@ export class FashionMotionController {
           boxShadow: "0 10px 30px rgba(0,0,0,0.3)"
         });
       });
-
-      if (typeof inView === 'function') {
-        inView(container, () => {
-          slides.forEach(slide => {
-            gsap.to(slide, {
-              scale: 1.0,
-              rotationY: 0,
-              rotationX: 0,
-              boxShadow: "0 35px 70px rgba(0,0,0,0.85)",
-              duration: 1.4,
-              ease: this.EASE_PREMIUM
-            });
-          });
-        });
-      }
     }
 
-    // Scroll Progress Tracking via Motion scroll()
-    if (typeof scroll === 'function') {
-      scroll(
-        (progress) => {
-          const index = Math.min(slides.length - 1, Math.floor(progress * slides.length));
-          
-          slides.forEach((slide, idx) => {
-            if (idx === index) {
-              slide.classList.add('active');
-            } else {
-              slide.classList.remove('active');
-            }
-          });
+    const motion = motionInput !== undefined ? motionInput : await getMotionModule();
 
-          if (index !== lastIndex && lookData[index]) {
-            lastIndex = index;
-            const data = lookData[index];
+    const updateLookbookProgress = (progress) => {
+      const index = Math.min(slides.length - 1, Math.floor(progress * slides.length));
+      
+      slides.forEach((slide, idx) => {
+        if (idx === index) {
+          slide.classList.add('active');
+        } else {
+          slide.classList.remove('active');
+        }
+      });
 
-            const textEls = [tagEl, titleEl, subtitleEl, priceEl].filter(Boolean);
-            textEls.forEach(el => el.style.opacity = '0.2');
+      if (index !== lastIndex && lookData[index]) {
+        lastIndex = index;
+        const data = lookData[index];
 
-            setTimeout(() => {
-              if (tagEl) tagEl.innerHTML = data.tag;
-              if (titleEl) titleEl.innerText = data.title;
-              if (subtitleEl) subtitleEl.innerText = data.desc;
-              if (priceEl) priceEl.innerText = data.price;
+        const textEls = [tagEl, titleEl, subtitleEl, priceEl].filter(Boolean);
+        textEls.forEach(el => el.style.opacity = '0.2');
 
-              textEls.forEach(el => el.style.opacity = '1');
-            }, 150);
-          }
-        },
-        { target: container, offset: ['start start', 'end end'] }
-      );
+        setTimeout(() => {
+          if (tagEl) tagEl.innerHTML = data.tag;
+          if (titleEl) titleEl.innerText = data.title;
+          if (subtitleEl) subtitleEl.innerText = data.desc;
+          if (priceEl) priceEl.innerText = data.price;
+
+          textEls.forEach(el => el.style.opacity = '1');
+        }, 150);
+      }
+    };
+
+    if (motion && typeof motion.scroll === 'function') {
+      motion.scroll(updateLookbookProgress, { target: container, offset: ['start start', 'end end'] });
+    } else {
+      window.addEventListener('scroll', () => {
+        const rect = container.getBoundingClientRect();
+        const totalScrollable = container.clientHeight - window.innerHeight;
+        if (totalScrollable > 0) {
+          const scrolled = -rect.top;
+          const progress = Math.min(1, Math.max(0, scrolled / totalScrollable));
+          updateLookbookProgress(progress);
+        }
     }
   }
 
