@@ -1,4 +1,5 @@
 // TEE MATRIX - Premium High-Fashion Motion Controller (Motion + GSAP)
+import { scroll, animate, inView } from 'https://cdn.jsdelivr.net/npm/motion@11.11.17/+esm';
 
 export class FashionMotionController {
   constructor() {
@@ -51,9 +52,9 @@ export class FashionMotionController {
   initSmoothScroll() {
     window.scrollTo(0, 0);
 
-    // Hardware-Accelerated Vertical Scroll Progress Indicator via Motion.scroll()
-    if (window.Motion && typeof window.Motion.scroll === 'function') {
-      window.Motion.scroll((progress) => {
+    // Hardware-Accelerated Vertical Scroll Progress Indicator via Motion scroll()
+    if (typeof scroll === 'function') {
+      scroll((progress) => {
         const fill = document.getElementById('scrollProgressFill');
         if (fill) {
           fill.style.height = `${Math.min(100, Math.max(0, progress * 100))}%`;
@@ -148,12 +149,12 @@ export class FashionMotionController {
       );
     }
 
-    // 2. Parallax Background Layers using Motion.scroll()
-    if (!this.isMobile && window.Motion && typeof window.Motion.scroll === 'function') {
+    // 2. Parallax Background Layers using Motion scroll()
+    if (!this.isMobile && typeof scroll === 'function' && typeof animate === 'function') {
       const heroSection = document.getElementById('hero');
       if (heroBg && heroSection) {
-        window.Motion.scroll(
-          window.Motion.animate(heroBg, { transform: ['translateY(0px)', 'translateY(60px)'] }),
+        scroll(
+          animate(heroBg, { transform: ['translateY(0px)', 'translateY(60px)'] }),
           { target: heroSection, offset: ['start start', 'end start'] }
         );
       }
@@ -161,26 +162,26 @@ export class FashionMotionController {
       const storyBg = document.getElementById('storyBg');
       const storySection = document.getElementById('story');
       if (storyBg && storySection) {
-        window.Motion.scroll(
-          window.Motion.animate(storyBg, { transform: ['translateY(0px)', 'translateY(60px)'] }),
+        scroll(
+          animate(storyBg, { transform: ['translateY(0px)', 'translateY(60px)'] }),
           { target: storySection, offset: ['start end', 'end start'] }
         );
       }
     }
 
-    // 3. Entrance Reveals using Motion.inView()
-    if (window.Motion && typeof window.Motion.inView === 'function') {
+    // 3. Entrance Reveals using Motion inView()
+    if (typeof inView === 'function' && typeof animate === 'function') {
       document.querySelectorAll('.editorial-section').forEach((section) => {
-        window.Motion.inView(section, () => {
+        inView(section, () => {
           const tag = section.querySelector('.section-tag');
           const title = section.querySelector('.section-title');
           const cards = section.querySelectorAll('.product-card');
 
-          if (tag) window.Motion.animate(tag, { opacity: [0, 1], y: [16, 0] }, { duration: 0.8 });
-          if (title) window.Motion.animate(title, { opacity: [0, 1], y: [24, 0] }, { duration: 1.0 });
+          if (tag) animate(tag, { opacity: [0, 1], transform: ['translateY(16px)', 'translateY(0px)'] }, { duration: 0.8 });
+          if (title) animate(title, { opacity: [0, 1], transform: ['translateY(24px)', 'translateY(0px)'] }, { duration: 1.0 });
           if (cards.length > 0) {
             cards.forEach((card, i) => {
-              window.Motion.animate(card, { opacity: [0, 1], y: [28, 0] }, { duration: 1.0, delay: i * 0.1 });
+              animate(card, { opacity: [0, 1], transform: ['translateY(28px)', 'translateY(0px)'] }, { duration: 1.0, delay: i * 0.1 });
             });
           }
         });
@@ -239,8 +240,8 @@ export class FashionMotionController {
         });
       });
 
-      if (window.Motion && typeof window.Motion.inView === 'function') {
-        window.Motion.inView(container, () => {
+      if (typeof inView === 'function') {
+        inView(container, () => {
           slides.forEach(slide => {
             gsap.to(slide, {
               scale: 1.0,
@@ -251,12 +252,48 @@ export class FashionMotionController {
               ease: this.EASE_PREMIUM
             });
           });
-    this.lenis?.stop();
+        });
+      }
+    }
+
+    // Scroll Progress Tracking via Motion scroll()
+    if (typeof scroll === 'function') {
+      scroll(
+        (progress) => {
+          const index = Math.min(slides.length - 1, Math.floor(progress * slides.length));
+          
+          slides.forEach((slide, idx) => {
+            if (idx === index) {
+              slide.classList.add('active');
+            } else {
+              slide.classList.remove('active');
+            }
+          });
+
+          if (index !== lastIndex && lookData[index]) {
+            lastIndex = index;
+            const data = lookData[index];
+
+            const textEls = [tagEl, titleEl, subtitleEl, priceEl].filter(Boolean);
+            textEls.forEach(el => el.style.opacity = '0.2');
+
+            setTimeout(() => {
+              if (tagEl) tagEl.innerHTML = data.tag;
+              if (titleEl) titleEl.innerText = data.title;
+              if (subtitleEl) subtitleEl.innerText = data.desc;
+              if (priceEl) priceEl.innerText = data.price;
+
+              textEls.forEach(el => el.style.opacity = '1');
+            }, 150);
+          }
+        },
+        { target: container, offset: ['start start', 'end end'] }
+      );
+    }
   }
 
-  start() {
-    this.lenis?.start();
-  }
+  stop() {}
+  start() {}
 
   init3DCardTilt() {
     if (this.isMobile || this.isReducedMotion) return;
