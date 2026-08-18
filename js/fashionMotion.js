@@ -127,8 +127,8 @@ export class FashionMotionController {
     }
   }
 
-  async initScrollTriggers() {
-    // 1. Hero Reveal Animation
+  initScrollTriggers() {
+    // 1. Hero Reveal Animation (Runs synchronously & instantly)
     const heroBg = document.getElementById('heroBg');
     if (heroBg && typeof gsap !== 'undefined') {
       gsap.fromTo(heroBg,
@@ -138,7 +138,7 @@ export class FashionMotionController {
     }
 
     if (typeof gsap !== 'undefined') {
-      const heroTl = gsap.timeline({ delay: 0.2 });
+      const heroTl = gsap.timeline({ delay: 0.1 });
 
       heroTl.fromTo('.hero-subtitle', 
         { y: 20, opacity: 0 },
@@ -161,81 +161,62 @@ export class FashionMotionController {
       );
     }
 
-    const motion = await getMotionModule();
+    // Direct Instant Display Fallback for Editorial Sections
+    document.querySelectorAll('.editorial-section .section-tag, .editorial-section .section-title, .editorial-section .product-card').forEach(el => {
+      el.style.opacity = '1';
+      el.style.transform = 'none';
+    });
 
-    // 2. Parallax Background Layers
-    if (!this.isMobile && motion && typeof motion.scroll === 'function' && typeof motion.animate === 'function') {
-      const heroSection = document.getElementById('hero');
-      if (heroBg && heroSection) {
-        motion.scroll(
-          motion.animate(heroBg, { transform: ['translateY(0px)', 'translateY(60px)'] }),
-          { target: heroSection, offset: ['start start', 'end start'] }
-        );
+    // Asynchronously load Motion for scroll enhancements without blocking UI
+    getMotionModule().then(motion => {
+      // 2. Parallax Background Layers
+      if (!this.isMobile && motion && typeof motion.scroll === 'function' && typeof motion.animate === 'function') {
+        const heroSection = document.getElementById('hero');
+        if (heroBg && heroSection) {
+          motion.scroll(
+            motion.animate(heroBg, { transform: ['translateY(0px)', 'translateY(60px)'] }),
+            { target: heroSection, offset: ['start start', 'end start'] }
+          );
+        }
+
+        const storyBg = document.getElementById('storyBg');
+        const storySection = document.getElementById('story');
+        if (storyBg && storySection) {
+          motion.scroll(
+            motion.animate(storyBg, { transform: ['translateY(0px)', 'translateY(60px)'] }),
+            { target: storySection, offset: ['start end', 'end start'] }
+          );
+        }
       }
 
-      const storyBg = document.getElementById('storyBg');
-      const storySection = document.getElementById('story');
-      if (storyBg && storySection) {
-        motion.scroll(
-          motion.animate(storyBg, { transform: ['translateY(0px)', 'translateY(60px)'] }),
-          { target: storySection, offset: ['start end', 'end start'] }
-        );
-      }
-    }
+      // 3. Entrance Reveals
+      if (motion && typeof motion.inView === 'function' && typeof motion.animate === 'function') {
+        document.querySelectorAll('.editorial-section').forEach((section) => {
+          motion.inView(section, () => {
+            const tag = section.querySelector('.section-tag');
+            const title = section.querySelector('.section-title');
+            const cards = section.querySelectorAll('.product-card');
 
-    // 3. Entrance Reveals
-    if (motion && typeof motion.inView === 'function' && typeof motion.animate === 'function') {
-      document.querySelectorAll('.editorial-section').forEach((section) => {
-        motion.inView(section, () => {
-          const tag = section.querySelector('.section-tag');
-          const title = section.querySelector('.section-title');
-          const cards = section.querySelectorAll('.product-card');
-
-          if (tag) motion.animate(tag, { opacity: [0, 1], transform: ['translateY(16px)', 'translateY(0px)'] }, { duration: 0.8 });
-          if (title) motion.animate(title, { opacity: [0, 1], transform: ['translateY(24px)', 'translateY(0px)'] }, { duration: 1.0 });
-          if (cards.length > 0) {
-            cards.forEach((card, i) => {
-              motion.animate(card, { opacity: [0, 1], transform: ['translateY(28px)', 'translateY(0px)'] }, { duration: 1.0, delay: i * 0.1 });
-            });
-          }
-        });
-      });
-    } else {
-      // Robust IntersectionObserver Fallback
-      if (typeof IntersectionObserver !== 'undefined') {
-        const observer = new IntersectionObserver((entries) => {
-          entries.forEach(entry => {
-            if (entry.isIntersecting) {
-              const sec = entry.target;
-              const tag = sec.querySelector('.section-tag');
-              const title = sec.querySelector('.section-title');
-              const cards = sec.querySelectorAll('.product-card');
-
-              if (tag) { tag.style.opacity = '1'; tag.style.transform = 'translateY(0)'; }
-              if (title) { title.style.opacity = '1'; title.style.transform = 'translateY(0)'; }
-              cards.forEach(c => { c.style.opacity = '1'; c.style.transform = 'translateY(0)'; });
-              observer.unobserve(sec);
+            if (tag) motion.animate(tag, { opacity: [0, 1], transform: ['translateY(16px)', 'translateY(0px)'] }, { duration: 0.8 });
+            if (title) motion.animate(title, { opacity: [0, 1], transform: ['translateY(24px)', 'translateY(0px)'] }, { duration: 1.0 });
+            if (cards.length > 0) {
+              cards.forEach((card, i) => {
+                motion.animate(card, { opacity: [0, 1], transform: ['translateY(28px)', 'translateY(0px)'] }, { duration: 1.0, delay: i * 0.1 });
+              });
             }
           });
-        }, { threshold: 0.1 });
-
-        document.querySelectorAll('.editorial-section').forEach(s => observer.observe(s));
-      } else {
-        document.querySelectorAll('.editorial-section .section-tag, .editorial-section .section-title, .editorial-section .product-card').forEach(el => {
-          el.style.opacity = '1';
-          el.style.transform = 'none';
         });
       }
-    }
 
-    // 4. Pinned Collection Showcase
-    this.initPinnedCollectionSection(motion);
+      // 4. Pinned Collection Showcase
+      this.initPinnedCollectionSection(motion);
+    });
 
     // 5. Desktop 3D Card Tilt-on-Hover
     this.init3DCardTilt();
   }
 
-  async initPinnedCollectionSection(motionInput) {
+  initPinnedCollectionSection(motionInput) {
     const container = document.getElementById('pinnedCollectionContainer');
     if (!container) return;
 
@@ -281,8 +262,6 @@ export class FashionMotionController {
       });
     }
 
-    const motion = motionInput !== undefined ? motionInput : await getMotionModule();
-
     const updateLookbookProgress = (progress) => {
       const index = Math.min(slides.length - 1, Math.floor(progress * slides.length));
       
@@ -312,10 +291,10 @@ export class FashionMotionController {
       }
     };
 
-    if (motion && typeof motion.scroll === 'function') {
-      motion.scroll(updateLookbookProgress, { target: container, offset: ['start start', 'end end'] });
+    if (motionInput && typeof motionInput.scroll === 'function') {
+      motionInput.scroll(updateLookbookProgress, { target: container, offset: ['start start', 'end end'] });
     } else {
-      window.addEventListener('scroll', () => {
+      const handleNativeScroll = () => {
         const rect = container.getBoundingClientRect();
         const totalScrollable = container.clientHeight - window.innerHeight;
         if (totalScrollable > 0) {
@@ -323,9 +302,10 @@ export class FashionMotionController {
           const progress = Math.min(1, Math.max(0, scrolled / totalScrollable));
           updateLookbookProgress(progress);
         }
+      };
+      window.addEventListener('scroll', handleNativeScroll);
+      handleNativeScroll();
     }
-  }
-
   stop() {}
   start() {}
 
@@ -394,6 +374,8 @@ export class FashionMotionController {
         wipe.classList.remove('active');
       }, 600);
     }, 600);
+  }
+
   scrollTo(target, options = {}) {
     if (typeof target === 'number') {
       window.scrollTo({ top: target, behavior: options.immediate ? 'instant' : 'smooth' });
@@ -404,9 +386,6 @@ export class FashionMotionController {
       }
     }
   }
-
-  stop() {}
-  start() {}
 }
 
 export const fashionMotion = new FashionMotionController();
