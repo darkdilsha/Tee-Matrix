@@ -186,7 +186,31 @@ class StoreService {
   // Products CRUD
   getProducts() {
     try {
-      return JSON.parse(localStorage.getItem('tm_products')) || INITIAL_PRODUCTS;
+      const raw = JSON.parse(localStorage.getItem('tm_products')) || INITIAL_PRODUCTS;
+      return raw.map(p => {
+        let sizes = ['S', 'M', 'L', 'XL'];
+        if (Array.isArray(p.sizes)) {
+          sizes = p.sizes;
+        } else if (typeof p.sizes === 'string') {
+          try { sizes = JSON.parse(p.sizes); } catch (_) { sizes = p.sizes.split(',').map(s => s.trim()).filter(Boolean); }
+        }
+
+        let images = [p.imagePrimary, p.imageHover].filter(Boolean);
+        if (Array.isArray(p.images) && p.images.length > 0) {
+          images = p.images;
+        } else if (typeof p.images === 'string') {
+          try { images = JSON.parse(p.images); } catch (_) { images = p.images.split(',').map(s => s.trim()).filter(Boolean); }
+        }
+
+        return {
+          ...p,
+          price: Number(p.price) || 0,
+          stockQty: Number(p.stockQty) !== undefined ? Number(p.stockQty) : 10,
+          inStock: p.inStock !== false && (p.stockQty === undefined || Number(p.stockQty) > 0),
+          sizes: Array.isArray(sizes) && sizes.length > 0 ? sizes : ['S', 'M', 'L', 'XL'],
+          images: Array.isArray(images) && images.length > 0 ? images : [p.imagePrimary || 'assets/tee_black_heavy.jpg']
+        };
+      });
     } catch (e) {
       return INITIAL_PRODUCTS;
     }

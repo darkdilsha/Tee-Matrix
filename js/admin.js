@@ -227,7 +227,7 @@ export class AdminPanel {
                   </td>
                   <td>
                     <strong style="color: #fff; display: block; font-size: 0.95rem;">${p.name}</strong>
-                    <span style="font-size: 0.75rem; color: var(--text-muted);">${p.fit} &bull; ${p.sizes.join(', ')}</span>
+                    <span style="font-size: 0.75rem; color: var(--text-muted);">${p.fit || 'Boxy Fit'} &bull; ${Array.isArray(p.sizes) ? p.sizes.join(', ') : (p.sizes || 'S, M, L, XL')}</span>
                   </td>
                   <td style="color: var(--text-secondary); font-size: 0.85rem;">${p.category}</td>
                   <td style="color: #fff; font-weight: 700;">₹${p.price.toLocaleString('en-IN')}</td>
@@ -292,7 +292,7 @@ export class AdminPanel {
                   </td>
                   <td style="color: var(--text-secondary); font-size: 0.8rem; max-width: 250px;">${o.address}</td>
                   <td style="font-size: 0.8rem; color: var(--text-secondary);">
-                    ${o.items.map(i => `${i.name} (${i.size}) x${i.qty}`).join('<br/>')}
+                    ${Array.isArray(o.items) ? o.items.map(i => `${i.name} (${i.size || 'M'}) x${i.qty}`).join('<br/>') : 'No items'}
                   </td>
                   <td style="color: #fff; font-weight: 700;">₹${o.total.toLocaleString('en-IN')}</td>
                   <td>
