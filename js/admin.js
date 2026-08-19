@@ -1,5 +1,6 @@
 import { store } from './store.js';
 import { supabaseService } from './supabase.js';
+import { ProductImageAI } from './imageAI.js';
 
 export class AdminPanel {
   constructor() {
@@ -752,6 +753,11 @@ export class AdminPanel {
               <input type="file" id="pFileInput" multiple accept="image/jpeg,image/png,image/webp" style="display: none;" />
             </div>
 
+            <!-- AI Image Vision Analysis Status Banner -->
+            <div id="aiStatusContainer" style="display: none; margin-top: 0.6rem; padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.8rem; transition: all 0.3s ease;">
+              <!-- Populated Dynamically -->
+            </div>
+
             <div id="adminUploadThumbs" class="admin-upload-thumbs">
               <!-- Rendered Dynamically -->
             </div>
@@ -788,11 +794,13 @@ export class AdminPanel {
             </div>
           </div>
 
-          <!-- Product Description (Multiline Text Area) -->
+          <!-- Product Description (Multiline Text Area with AI Trigger) -->
           <div>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
               <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; font-weight: 600;">PRODUCT DESCRIPTION *</label>
-              <span style="font-size: 0.7rem; color: var(--text-muted);">Detailed overview</span>
+              <button type="button" id="aiGenDescBtn" title="Analyze uploaded photo with AI" style="background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); color: #38bdf8; font-size: 0.7rem; padding: 0.2rem 0.6rem; border-radius: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.3rem;">
+                ✨ Auto-Generate with AI
+              </button>
             </div>
             <textarea 
               id="pDesc" 
@@ -804,11 +812,13 @@ export class AdminPanel {
             >${p.description || ''}</textarea>
           </div>
 
-          <!-- Product Highlights (Separate Bullet List with Add/Remove) -->
+          <!-- Product Highlights (Separate Bullet List with Add/Remove and AI Trigger) -->
           <div>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
               <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; font-weight: 600;">PRODUCT HIGHLIGHTS</label>
-              <span style="font-size: 0.7rem; color: var(--text-muted);">Key bullet-point specifications</span>
+              <button type="button" id="aiGenHlBtn" title="Extract 4-6 highlights with AI" style="background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); color: #38bdf8; font-size: 0.7rem; padding: 0.2rem 0.6rem; border-radius: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.3rem;">
+                ✨ Auto-Generate with AI
+              </button>
             </div>
 
             <div id="adminHighlightsContainer" style="display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 0.75rem;">
@@ -960,8 +970,73 @@ export class AdminPanel {
       initDraggableThumbs();
     };
 
+    let renderHighlightsGlobal = null;
+
+    const triggerAIAnalysis = async (fileOrUrl) => {
+      const aiStatus = document.getElementById('aiStatusContainer');
+      if (aiStatus) {
+        aiStatus.style.display = 'block';
+        aiStatus.style.background = 'rgba(56, 189, 248, 0.08)';
+        aiStatus.style.border = '1px solid rgba(56, 189, 248, 0.25)';
+        aiStatus.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 0.65rem; color: #38bdf8;">
+            <div class="spinner" style="width: 15px; height: 15px; border: 2px solid rgba(56, 189, 248, 0.25); border-top-color: #38bdf8; border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0;"></div>
+            <span>✨ <strong>AI Vision:</strong> Analyzing T-shirt image features & generating description + highlights...</span>
+          </div>
+        `;
+      }
+
+      const aiResult = await ProductImageAI.analyzeImage(fileOrUrl);
+
+      if (!aiStatus) return;
+
+      if (aiResult.success) {
+        // Auto-populate description
+        const descEl = document.getElementById('pDesc');
+        if (descEl) {
+          descEl.value = aiResult.description;
+          descEl.style.transition = 'border-color 0.4s ease';
+          descEl.style.borderColor = '#38bdf8';
+          setTimeout(() => descEl.style.borderColor = '', 1200);
+        }
+
+        // Auto-populate highlights
+        highlightsList = [...aiResult.highlights];
+        if (typeof renderHighlightsGlobal === 'function') {
+          renderHighlightsGlobal();
+        }
+
+        aiStatus.style.background = 'rgba(16, 185, 129, 0.08)';
+        aiStatus.style.border = '1px solid rgba(16, 185, 129, 0.25)';
+        aiStatus.innerHTML = `
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; color: #10b981;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span>✨</span>
+              <span><strong>AI Analysis Complete:</strong> Generated Description & ${aiResult.highlights.length} Highlights based on image. You can edit them below!</span>
+            </div>
+            <button type="button" style="background: none; border: none; color: #10b981; cursor: pointer; font-size: 1.2rem; line-height: 1; padding: 0 0.3rem;" onclick="this.closest('#aiStatusContainer').style.display='none'">&times;</button>
+          </div>
+        `;
+        store.showToast("✨ AI generated description & highlights from uploaded image!");
+      } else {
+        aiStatus.style.background = 'rgba(239, 68, 68, 0.08)';
+        aiStatus.style.border = '1px solid rgba(239, 68, 68, 0.25)';
+        aiStatus.innerHTML = `
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; color: #ef4444;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span>⚠️</span>
+              <span>${aiResult.error || 'Could not analyze image'}. You can enter description & highlights manually.</span>
+            </div>
+            <button type="button" style="background: none; border: none; color: #ef4444; cursor: pointer; font-size: 1.2rem; line-height: 1; padding: 0 0.3rem;" onclick="this.closest('#aiStatusContainer').style.display='none'">&times;</button>
+          </div>
+        `;
+      }
+    };
+
     const handleFiles = (files) => {
       const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      let firstValidFile = null;
+
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
 
@@ -974,6 +1049,8 @@ export class AdminPanel {
           store.showToast(`"${file.name}" exceeds the 5MB file size limit.`, 'error');
           continue;
         }
+
+        if (!firstValidFile) firstValidFile = file;
 
         const tempId = Math.random().toString();
         const tempUrl = URL.createObjectURL(file);
@@ -1004,6 +1081,11 @@ export class AdminPanel {
           store.showToast(`Upload failed for "${file.name}"`, 'error');
           renderThumbnails();
         });
+      }
+
+      // Automatically analyze first uploaded image with AI
+      if (firstValidFile) {
+        triggerAIAnalysis(firstValidFile);
       }
     };
 
@@ -1144,6 +1226,8 @@ export class AdminPanel {
         });
       };
 
+      renderHighlightsGlobal = renderHighlights;
+
       // Add highlight button
       addBtn?.addEventListener('click', () => {
         syncValues();
@@ -1157,6 +1241,25 @@ export class AdminPanel {
 
       renderHighlights();
     };
+
+    // Connect manual AI trigger buttons
+    document.getElementById('aiGenDescBtn')?.addEventListener('click', () => {
+      const primaryImg = uploadedImages.find(img => !img.error && img.url);
+      if (primaryImg) {
+        triggerAIAnalysis(primaryImg.file || primaryImg.url);
+      } else {
+        store.showToast("Please upload a product photo first to analyze with AI.", 'error');
+      }
+    });
+
+    document.getElementById('aiGenHlBtn')?.addEventListener('click', () => {
+      const primaryImg = uploadedImages.find(img => !img.error && img.url);
+      if (primaryImg) {
+        triggerAIAnalysis(primaryImg.file || primaryImg.url);
+      } else {
+        store.showToast("Please upload a product photo first to analyze with AI.", 'error');
+      }
+    });
 
     // Initial render and setup
     renderThumbnails();
