@@ -690,11 +690,16 @@ export class AdminPanel {
     // State to store model image type disclosure ('product_only' | 'real_model' | 'ai_model')
     let modelImageType = p.modelImageType || 'product_only';
 
-    // State to store available sizes
-    let selectedSizes = Array.isArray(p.sizes) 
-      ? [...p.sizes] 
-      : (typeof p.sizes === 'string' ? JSON.parse(p.sizes) : ['S', 'M', 'L', 'XL']);
-    if (!selectedSizes || selectedSizes.length === 0) selectedSizes = ['S', 'M', 'L', 'XL'];
+    // State to store per-size stock inventory
+    let sizeStockMap = {};
+    if (p.sizeStock && typeof p.sizeStock === 'object') {
+      sizeStockMap = { ...p.sizeStock };
+    } else {
+      const initSizes = Array.isArray(p.sizes) ? p.sizes : ['S', 'M', 'L', 'XL'];
+      initSizes.forEach(s => {
+        sizeStockMap[s] = p.stockQty !== undefined ? Math.max(0, Math.floor(Number(p.stockQty) / initSizes.length)) : 10;
+      });
+    }
 
     // State to store product highlights
     let highlightsList = Array.isArray(p.highlights) && p.highlights.length > 0
@@ -761,17 +766,6 @@ export class AdminPanel {
             <span style="font-size: 0.7rem; color: var(--text-muted); display: block; margin-top: 0.4rem;">
               The first thumbnail is the <strong>Primary Image</strong> used by AI. Click <strong>"★ Set as Primary"</strong> or drag any photo to the 1st slot to re-analyze.
             </span>
-
-            <!-- Model Image Setting -->
-            <div id="aiStatusBanner" style="display: none; padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.82rem; align-items: center; gap: 0.6rem;">
-              <div class="ai-spinner" style="width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
-              <span id="aiStatusText" style="font-weight: 600;">Analyzing product...</span>
-            </div>
-
-            <!-- Uploaded Images Thumbnails Grid with Drag-and-Drop Reordering -->
-            <div id="adminThumbnailsGrid" style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.25rem;">
-              <!-- Populated dynamically -->
-            </div>
 
             <!-- AI-Generated Model Image Setting -->
             <div style="margin-top: 0.75rem; padding: 0.9rem 1rem; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px;">
@@ -944,6 +938,8 @@ export class AdminPanel {
         </form>
       </div>
     `;
+
+    const thumbsContainer = document.getElementById('adminUploadThumbs');
 
     // Dynamic UI Handlers for Thumbnails List
     const deleteImage = (index) => {

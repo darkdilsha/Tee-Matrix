@@ -490,9 +490,33 @@ class StoreService {
   }
 
   toggleStock(id) {
-    const products = this.getProducts().map(p => {
+    let products = this.getProducts();
+    products = products.map(p => {
       if (p.id === id) {
-        return { ...p, inStock: !p.inStock };
+        const nextState = !p.inStock;
+        let newSizeStock = { ...(p.sizeStock || {}) };
+        if (nextState) {
+          // Marking IN STOCK: ensure each size has at least 5 units if currently 0
+          const total = Object.values(newSizeStock).reduce((s, q) => s + (Number(q) || 0), 0);
+          if (total === 0) {
+            (p.sizes || ['S', 'M', 'L', 'XL']).forEach(sz => {
+              newSizeStock[sz] = 10;
+            });
+          }
+        } else {
+          // Marking OUT OF STOCK: zero out each size stock
+          Object.keys(newSizeStock).forEach(sz => {
+            newSizeStock[sz] = 0;
+          });
+        }
+        const newTotal = Object.values(newSizeStock).reduce((s, q) => s + (Number(q) || 0), 0);
+        this.showToast(nextState ? `Marked "${p.name}" as In Stock` : `Marked "${p.name}" as Out of Stock`);
+        return {
+          ...p,
+          sizeStock: newSizeStock,
+          stockQty: newTotal,
+          inStock: nextState
+        };
       }
       return p;
     });
