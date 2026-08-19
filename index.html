@@ -52,7 +52,13 @@
 
   <!-- Motion (scroll, animate, inView) -->
   <script src="https://cdn.jsdelivr.net/npm/motion@latest/dist/motion.js"></script>
-  <script>const { animate, scroll, inView } = Motion;</script>
+  <script>
+    if (typeof Motion !== 'undefined') {
+      window.animate = Motion.animate;
+      window.scroll = Motion.scroll;
+      window.inView = Motion.inView;
+    }
+  </script>
 
   <!-- Main ES Module Script -->
   <script type="module" src="js/app.js"></script>

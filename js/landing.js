@@ -93,7 +93,8 @@ export class LandingPage {
                     </div>
                   </div>
                 </div>
-              `).join('')}
+                `;
+              }).join('')}
             </div>
           </div>
         </section>
