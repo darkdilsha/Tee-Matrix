@@ -45,6 +45,7 @@ export class ProductDetailModal {
     }
 
     const origPrice = Math.round(product.price * 1.25);
+    const inStock = product.inStock !== false && (product.stockQty === undefined || Number(product.stockQty) > 0);
     const relatedProducts = store.getProducts()
       .filter(p => p.id !== product.id)
       .slice(0, 4);
@@ -92,8 +93,8 @@ export class ProductDetailModal {
                   <span style="font-size: 1.8rem; font-weight: 800; color: #fff; font-family: var(--font-heading);">₹${product.price.toLocaleString('en-IN')}</span>
                 </div>
                 <span class="discount-badge" style="font-size: 0.8rem; padding: 0.25rem 0.6rem;">20% OFF</span>
-                <span class="badge ${product.inStock ? 'badge-stock' : 'badge-out'}">
-                  ${product.inStock ? 'IN STOCK' : 'OUT OF STOCK'}
+                <span class="badge ${inStock ? 'badge-stock' : 'badge-out'}">
+                  ${inStock ? 'IN STOCK' : 'OUT OF STOCK'}
                 </span>
               </div>
 
@@ -131,19 +132,19 @@ export class ProductDetailModal {
               <div style="margin-bottom: 1.75rem;">
                 <span style="color: #fff; font-weight: 600; font-size: 0.8rem; display: block; margin-bottom: 0.5rem;">QUANTITY:</span>
                 <div style="display: inline-flex; border: 1px solid var(--border-color); border-radius: 6px; background: rgba(255,255,255,0.05); overflow: hidden;">
-                  <button id="qtyMinusBtn" style="padding: 0.5rem 0.9rem; color: #fff; font-size: 1.1rem; cursor: pointer;">-</button>
+                  <button id="qtyMinusBtn" style="padding: 0.5rem 0.9rem; color: #fff; font-size: 1.1rem; cursor: pointer;" ${!inStock ? 'disabled' : ''}>-</button>
                   <span id="qtyVal" style="padding: 0.5rem 1.2rem; color: #fff; font-weight: 600; font-size: 0.9rem; border-left: 1px solid var(--border-color); border-right: 1px solid var(--border-color);">${this.qty}</span>
-                  <button id="qtyPlusBtn" style="padding: 0.5rem 0.9rem; color: #fff; font-size: 1.1rem; cursor: pointer;">+</button>
+                  <button id="qtyPlusBtn" style="padding: 0.5rem 0.9rem; color: #fff; font-size: 1.1rem; cursor: pointer;" ${!inStock ? 'disabled' : ''}>+</button>
                 </div>
               </div>
             </div>
 
             <!-- Action Buttons -->
             <div style="display: flex; gap: 0.85rem; flex-wrap: wrap;">
-              <button class="btn-primary" id="detailAddToCartBtn" style="flex: 1; min-width: 170px; border-radius: 8px; padding: 0.9rem;" ${!product.inStock ? 'disabled' : ''}>
-                <span>${product.inStock ? 'ADD TO CART' : 'OUT OF STOCK'}</span>
+              <button class="btn-primary" id="detailAddToCartBtn" style="flex: 1; min-width: 170px; border-radius: 8px; padding: 0.9rem; ${!inStock ? 'opacity: 0.5; cursor: not-allowed;' : ''}" ${!inStock ? 'disabled' : ''}>
+                <span>${inStock ? 'ADD TO CART' : 'OUT OF STOCK'}</span>
               </button>
-              <button class="btn-secondary" id="detailBuyNowBtn" style="flex: 1; min-width: 160px; border-radius: 8px; padding: 0.9rem; border-color: var(--accent-gold); color: var(--accent-gold);" ${!product.inStock ? 'disabled' : ''}>
+              <button class="btn-secondary" id="detailBuyNowBtn" style="flex: 1; min-width: 160px; border-radius: 8px; padding: 0.9rem; border-color: var(--accent-gold); color: var(--accent-gold); ${!inStock ? 'opacity: 0.5; cursor: not-allowed;' : ''}" ${!inStock ? 'disabled' : ''}>
                 BUY NOW
               </button>
             </div>

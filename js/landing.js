@@ -56,20 +56,30 @@ export class LandingPage {
             </div>
             
             <div class="grid-arrivals">
-              ${products.map(product => `
-                <div class="product-card" data-product-id="${product.id}">
-                  <div class="card-img-wrapper">
+              ${products.map(product => {
+                const inStock = product.inStock !== false && (product.stockQty === undefined || Number(product.stockQty) > 0);
+                return `
+                <div class="product-card ${!inStock ? 'out-of-stock' : ''}" data-product-id="${product.id}">
+                  <div class="card-img-wrapper" style="${!inStock ? 'opacity: 0.8;' : ''}">
                     <img src="${product.imagePrimary}" alt="${product.name}" class="card-img-primary" loading="lazy" />
                     <img src="${product.imageHover || product.imagePrimary}" alt="${product.name}" class="card-img-hover" loading="lazy" />
                     <div class="card-badges">
-                      <span class="badge badge-new">${product.badge}</span>
-                      <span class="badge" style="background: rgba(0,0,0,0.7); color: #fff;">${product.category}</span>
+                      ${product.badge ? `<span class="badge badge-new">${product.badge}</span>` : ''}
+                      <span class="badge ${inStock ? 'badge-stock' : 'badge-out'}">
+                        ${inStock ? 'IN STOCK' : 'OUT OF STOCK'}
+                      </span>
                     </div>
-                    <div class="card-quick-add">
-                      <button class="btn-primary quick-add-btn magnetic-btn" data-id="${product.id}" style="width: 100%; padding: 0.8rem 1rem; font-size: 0.75rem;">
-                        QUICK ADD TO CART
-                      </button>
-                    </div>
+                    ${inStock ? `
+                      <div class="card-quick-add">
+                        <button class="btn-primary quick-add-btn magnetic-btn" data-id="${product.id}" style="width: 100%; padding: 0.8rem 1rem; font-size: 0.75rem;">
+                          QUICK ADD TO CART
+                        </button>
+                      </div>
+                    ` : `
+                      <div style="position: absolute; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; pointer-events: none;">
+                        <span class="badge badge-out" style="padding: 0.4rem 0.8rem; font-size: 0.75rem; letter-spacing: 0.1em; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">SOLD OUT</span>
+                      </div>
+                    `}
                   </div>
                   <div class="card-content">
                     <span class="card-category">${product.category}</span>

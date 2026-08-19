@@ -293,10 +293,20 @@ class StoreService {
     const product = this.getProductById(productId);
     if (!product) return;
 
+    const inStock = product.inStock !== false && (product.stockQty === undefined || Number(product.stockQty) > 0);
+    if (!inStock) {
+      this.showToast(`"${product.name}" is currently out of stock`, 'error');
+      return;
+    }
+
     let cart = this.getCart();
     const existingIndex = cart.findIndex(item => item.id === productId && item.size === size);
 
     if (existingIndex > -1) {
+      if (product.stockQty && (cart[existingIndex].qty + qty) > Number(product.stockQty)) {
+        this.showToast(`Only ${product.stockQty} item(s) available in stock`, 'error');
+        return;
+      }
       cart[existingIndex].qty += qty;
     } else {
       cart.push({

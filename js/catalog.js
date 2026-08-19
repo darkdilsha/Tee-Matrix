@@ -118,10 +118,11 @@ export class CatalogPage {
               const origPrice = Math.round(product.price * 1.25);
               const discountPct = 20;
               const isWishlisted = this.wishlistSet.has(product.id);
+              const inStock = product.inStock !== false && (product.stockQty === undefined || Number(product.stockQty) > 0);
 
               return `
-                <div class="product-card" data-product-id="${product.id}">
-                  <div class="card-img-wrapper">
+                <div class="product-card ${!inStock ? 'out-of-stock' : ''}" data-product-id="${product.id}">
+                  <div class="card-img-wrapper" style="${!inStock ? 'opacity: 0.8;' : ''}">
                     <!-- Wishlist Heart Button Top-Right Corner -->
                     <button class="card-wishlist-btn ${isWishlisted ? 'active' : ''}" data-wishlist-id="${product.id}" title="Save to Wishlist">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="${isWishlisted ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2">
@@ -134,19 +135,23 @@ export class CatalogPage {
                     
                     <div class="card-badges">
                       ${product.badge ? `<span class="badge badge-new">${product.badge}</span>` : ''}
-                      <span class="badge ${product.inStock ? 'badge-stock' : 'badge-out'}">
-                        ${product.inStock ? 'IN STOCK' : 'OUT OF STOCK'}
+                      <span class="badge ${inStock ? 'badge-stock' : 'badge-out'}">
+                        ${inStock ? 'IN STOCK' : 'OUT OF STOCK'}
                       </span>
                     </div>
 
                     <!-- Quick Add to Cart Button Overlay -->
-                    ${product.inStock ? `
+                    ${inStock ? `
                       <div class="card-quick-add">
                         <button class="btn-primary store-quick-add" data-id="${product.id}" style="width: 100%; padding: 0.7rem 0.8rem; font-size: 0.75rem; border-radius: 6px;">
                           + ADD TO CART
                         </button>
                       </div>
-                    ` : ''}
+                    ` : `
+                      <div style="position: absolute; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; pointer-events: none;">
+                        <span class="badge badge-out" style="padding: 0.4rem 0.8rem; font-size: 0.75rem; letter-spacing: 0.1em; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">SOLD OUT</span>
+                      </div>
+                    `}
                   </div>
 
                   <div class="card-content">
