@@ -232,7 +232,22 @@ export class AdminPanel {
                   </td>
                   <td style="color: var(--text-secondary); font-size: 0.85rem;">${p.category}</td>
                   <td style="color: #fff; font-weight: 700;">₹${p.price.toLocaleString('en-IN')}</td>
-                  <td style="color: #fff; font-weight: 600;">${p.stockQty}</td>
+                  <td>
+                    <span style="display: block; font-size: 0.9rem; font-weight: 700; color: ${p.stockQty > 0 ? '#fff' : '#ef4444'};">
+                      ${p.stockQty} Total
+                    </span>
+                    <div style="font-size: 0.68rem; display: flex; flex-direction: column; gap: 0.2rem; margin-top: 0.35rem; min-width: 140px;">
+                      ${(p.sizes || []).map(sz => {
+                        const q = p.sizeStock?.[sz] !== undefined ? p.sizeStock[sz] : (p.stockQty > 0 ? 5 : 0);
+                        return `
+                          <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.1rem 0.3rem; background: ${q > 0 ? 'rgba(255,255,255,0.04)' : 'rgba(239,68,68,0.1)'}; border: 1px solid ${q > 0 ? 'rgba(255,255,255,0.08)' : 'rgba(239,68,68,0.25)'}; border-radius: 3px; color: ${q > 0 ? '#ccc' : '#ef4444'};">
+                            <span><strong>${sz}</strong></span>
+                            <span>${q > 0 ? `${q} in stock` : '0 — Out of Stock'}</span>
+                          </div>
+                        `;
+                      }).join('')}
+                    </div>
+                  </td>
                   <td>
                     <span class="badge ${p.inStock ? 'badge-stock' : 'badge-out'}">
                       ${p.inStock ? 'IN STOCK' : 'OUT OF STOCK'}
@@ -748,82 +763,83 @@ export class AdminPanel {
             </span>
 
             <!-- Model Image Setting -->
-            <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; font-weight: 600;">
-                  MODEL IMAGE TYPE
-                </label>
-                <span style="font-size: 0.7rem; color: var(--text-muted);">Optional disclosure for customers</span>
-              </div>
+            <div id="aiStatusBanner" style="display: none; padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.82rem; align-items: center; gap: 0.6rem;">
+              <div class="ai-spinner" style="width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+              <span id="aiStatusText" style="font-weight: 600;">Analyzing product...</span>
+            </div>
 
-              <div class="model-image-type-selector" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem;">
-                <button type="button" class="model-type-btn ${modelImageType === 'product_only' ? 'active' : ''}" data-type="product_only" style="padding: 0.6rem 0.5rem; border-radius: 8px; font-size: 0.75rem; font-weight: 600; cursor: pointer; text-align: center; border: 1px solid var(--border-color); background: rgba(255,255,255,0.03); color: var(--text-secondary); transition: all 0.2s ease;">
-                  📦 Product Only
+            <!-- Uploaded Images Thumbnails Grid with Drag-and-Drop Reordering -->
+            <div id="adminThumbnailsGrid" style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.25rem;">
+              <!-- Populated dynamically -->
+            </div>
+
+            <!-- AI-Generated Model Image Setting -->
+            <div style="margin-top: 0.75rem; padding: 0.9rem 1rem; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">
+                  Product Image Type
+                </span>
+                <span style="font-size: 0.7rem; color: var(--text-muted);">Select if an AI model is shown</span>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;" id="modelImageTypeSelector">
+                <button type="button" class="btn-secondary model-type-btn ${modelImageType === 'product_only' ? 'active' : ''}" data-type="product_only" style="padding: 0.5rem 0.4rem; font-size: 0.75rem; border-radius: 6px; text-align: center;">
+                  👕 Product Only
                 </button>
-                <button type="button" class="model-type-btn ${modelImageType === 'real_model' ? 'active' : ''}" data-type="real_model" style="padding: 0.6rem 0.5rem; border-radius: 8px; font-size: 0.75rem; font-weight: 600; cursor: pointer; text-align: center; border: 1px solid var(--border-color); background: rgba(255,255,255,0.03); color: var(--text-secondary); transition: all 0.2s ease;">
-                  👤 Real Model
+                <button type="button" class="btn-secondary model-type-btn ${modelImageType === 'real_model' ? 'active' : ''}" data-type="real_model" style="padding: 0.5rem 0.4rem; font-size: 0.75rem; border-radius: 6px; text-align: center;">
+                  🧍 Real Model
                 </button>
-                <button type="button" class="model-type-btn ${modelImageType === 'ai_model' ? 'active' : ''}" data-type="ai_model" style="padding: 0.6rem 0.5rem; border-radius: 8px; font-size: 0.75rem; font-weight: 600; cursor: pointer; text-align: center; border: 1px solid var(--border-color); background: rgba(255,255,255,0.03); color: var(--text-secondary); transition: all 0.2s ease;">
+                <button type="button" class="btn-secondary model-type-btn ${modelImageType === 'ai_model' ? 'active' : ''}" data-type="ai_model" style="padding: 0.5rem 0.4rem; font-size: 0.75rem; border-radius: 6px; text-align: center;">
                   ✨ AI-Generated Model
                 </button>
               </div>
-              <span style="font-size: 0.7rem; color: var(--text-muted); display: block; margin-top: 0.4rem;">
-                If <strong>"AI-Generated Model"</strong> is selected, a subtle disclosure notice ("AI-generated model image. Actual product may vary slightly.") will appear on the product page.
-              </span>
             </div>
           </div>
 
-          <!-- STEP 2: AI GENERATED PRODUCT INFORMATION -->
+          <!-- STEP 2: AI-GENERATED PRODUCT INFO -->
           <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; gap: 1.15rem;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <span style="font-size: 0.8rem; font-weight: 700; color: #38bdf8; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.4rem;">
-                <span>✨</span> STEP 2 — AI GENERATED INFORMATION (EDITABLE)
+                <span>🤖</span> STEP 2 — PRODUCT NAME, DESCRIPTION & HIGHLIGHTS
               </span>
-              <button type="button" id="reAnalyzeBtn" title="Re-run AI analysis on current photo" style="background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); color: #38bdf8; font-size: 0.72rem; padding: 0.3rem 0.7rem; border-radius: 16px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem;">
-                <span>✨ Re-Analyze Image</span>
+              <button type="button" id="reAnalyzeBtn" class="btn-secondary" style="font-size: 0.7rem; padding: 0.3rem 0.65rem; border-color: #38bdf8; color: #38bdf8;">
+                ⚡ RE-ANALYZE IMAGE
               </button>
             </div>
 
             <!-- Product Name -->
             <div>
-              <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem; font-weight: 600;">
-                PRODUCT NAME *
-              </label>
-              <input type="text" id="pName" required class="input-field" value="${p.name || ''}" placeholder="e.g. Vintage Eagle Graphic T-Shirt" style="font-size: 0.95rem; font-weight: 600; width: 100%;" />
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">PRODUCT NAME *</label>
+                <span id="nameAiBadge" style="display: none; font-size: 0.68rem; color: #38bdf8; background: rgba(56, 189, 248, 0.1); padding: 0.15rem 0.45rem; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.25);">✨ AI Generated</span>
+              </div>
+              <input type="text" id="pName" required class="input-field" placeholder="e.g. Classic Black Relaxed Fit T-Shirt" value="${p.name || ''}" style="font-weight: 600; font-size: 0.95rem;" />
             </div>
 
             <!-- Product Description -->
             <div>
-              <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem; font-weight: 600;">
-                PRODUCT DESCRIPTION *
-              </label>
-              <textarea 
-                id="pDesc" 
-                required 
-                class="input-field" 
-                rows="3" 
-                placeholder="e.g. Vintage Eagle Graphic T-Shirt features a bold eagle graphic on the front..."
-                style="width: 100%; resize: vertical; line-height: 1.6; font-size: 0.85rem;"
-              >${p.description || ''}</textarea>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">PRODUCT DESCRIPTION</label>
+                <span id="descAiBadge" style="display: none; font-size: 0.68rem; color: #38bdf8; background: rgba(56, 189, 248, 0.1); padding: 0.15rem 0.45rem; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.25);">✨ AI Generated</span>
+              </div>
+              <textarea id="pDesc" rows="3" class="input-field" placeholder="Short, professional description based on the T-shirt image..." style="resize: vertical; font-size: 0.85rem; line-height: 1.6;">${p.description || ''}</textarea>
             </div>
 
             <!-- Product Highlights -->
             <div>
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-                <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; font-weight: 600;">
-                  PRODUCT HIGHLIGHTS (4–6 BULLET POINTS)
-                </label>
-                <span style="font-size: 0.7rem; color: var(--text-muted);">Short & easy to scan</span>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">PRODUCT HIGHLIGHTS</label>
+                  <span id="highlightsAiBadge" style="display: none; font-size: 0.68rem; color: #38bdf8; background: rgba(56, 189, 248, 0.1); padding: 0.15rem 0.45rem; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.25);">✨ AI Generated</span>
+                </div>
+                <button type="button" id="addHighlightBtn" class="btn-secondary" style="font-size: 0.72rem; padding: 0.3rem 0.65rem; white-space: nowrap;">
+                  + ADD HIGHLIGHT
+                </button>
               </div>
 
-              <div id="adminHighlightsContainer" style="display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 0.75rem;">
-                <!-- Dynamic Highlight Input Rows -->
+              <!-- Highlights Dynamic List -->
+              <div id="adminHighlightsContainer" style="display: flex; flex-direction: column; gap: 0.45rem;">
+                <!-- Populated dynamically -->
               </div>
-
-              <button type="button" id="addHighlightBtn" class="btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.4rem;">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                ADD HIGHLIGHT
-              </button>
             </div>
           </div>
 
@@ -851,27 +867,20 @@ export class AdminPanel {
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
               <div>
-                <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem; font-weight: 600;">STOCK QUANTITY *</label>
-                <input type="number" id="pStockQty" required class="input-field" value="${p.stockQty !== undefined ? p.stockQty : 25}" />
-              </div>
-              <div>
                 <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem; font-weight: 600;">COLOUR / TONE</label>
                 <input type="text" id="pColor" class="input-field" placeholder="e.g. Charcoal Grey" value="${p.color || ''}" />
               </div>
-            </div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
               <div>
                 <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem; font-weight: 600;">PATTERN / DESIGN</label>
                 <input type="text" id="pPattern" class="input-field" placeholder="e.g. Front Graphic Print" value="${p.pattern || ''}" />
               </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
               <div>
                 <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem; font-weight: 600;">FIT</label>
                 <input type="text" id="pFit" class="input-field" placeholder="e.g. Boxy Oversized Fit" value="${p.fit || 'Boxy Oversized Fit'}" />
               </div>
-            </div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
               <div>
                 <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem; font-weight: 600;">NECK TYPE</label>
                 <input type="text" id="pNeckType" class="input-field" placeholder="e.g. Round Neck" value="${p.neckType || 'Round Neck'}" />
@@ -882,29 +891,37 @@ export class AdminPanel {
               </div>
             </div>
 
-            <!-- Available Sizes Selector -->
-            <div>
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-                <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; font-weight: 600;">AVAILABLE SIZES *</label>
-                <span style="font-size: 0.7rem; color: var(--text-muted);">Click to toggle sizes</span>
-              </div>
-              
-              <div class="admin-size-selector" id="adminSizeSelector">
-                ${['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'].map(sz => `
-                  <button type="button" class="admin-size-pill ${selectedSizes.includes(sz) ? 'active' : ''}" data-size="${sz}">
-                    ${sz}
-                  </button>
-                `).join('')}
-                ${selectedSizes.filter(s => !['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'].includes(s)).map(customSz => `
-                  <button type="button" class="admin-size-pill active" data-size="${customSz}">
-                    ${customSz}
-                  </button>
-                `).join('')}
+            <!-- Size & Stock Section -->
+            <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 10px; padding: 1.1rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;">
+                <div>
+                  <span style="font-size: 0.8rem; color: #fff; font-weight: 700; display: block;">AVAILABLE SIZES & STOCK *</span>
+                  <span style="font-size: 0.7rem; color: var(--text-muted);">Enable sizes and set individual stock quantity per size</span>
+                </div>
+                <span id="adminTotalStockBadge" style="font-size: 0.75rem; font-weight: 700; color: var(--accent-gold); background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); padding: 0.25rem 0.6rem; border-radius: 12px;">
+                  Total Stock: 0
+                </span>
               </div>
 
-              <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
-                <input type="text" id="customSizeInput" class="input-field" placeholder="Custom size (e.g. Free Size, 4XL)" style="font-size: 0.8rem; padding: 0.5rem 0.75rem;" />
-                <button type="button" id="addCustomSizeBtn" class="btn-secondary" style="white-space: nowrap; padding: 0.5rem 1rem; font-size: 0.75rem;">+ ADD SIZE</button>
+              <!-- Size selector toggle pills -->
+              <div class="admin-size-selector" id="adminSizeSelector" style="margin-bottom: 0.75rem;">
+                <!-- Populated dynamically -->
+              </div>
+
+              <!-- Custom Size Adder -->
+              <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                <input type="text" id="customSizeInput" class="input-field" placeholder="Add custom size (e.g. 4XL, Free Size)" style="font-size: 0.8rem; padding: 0.45rem 0.75rem; flex: 1;" />
+                <button type="button" id="addCustomSizeBtn" class="btn-secondary" style="white-space: nowrap; padding: 0.45rem 0.9rem; font-size: 0.75rem;">+ ADD SIZE</button>
+              </div>
+
+              <!-- Per-Size Quantity Input Grid -->
+              <div style="border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
+                <div style="font-size: 0.72rem; color: var(--text-secondary); margin-bottom: 0.6rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">
+                  ENTER STOCK QUANTITY PER SIZE:
+                </div>
+                <div id="adminSizeStockGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 0.6rem;">
+                  <!-- Dynamically rendered per-size inputs -->
+                </div>
               </div>
             </div>
 
@@ -929,8 +946,6 @@ export class AdminPanel {
     `;
 
     // Dynamic UI Handlers for Thumbnails List
-    const thumbsContainer = document.getElementById('adminUploadThumbs');
-
     const deleteImage = (index) => {
       const img = uploadedImages[index];
       uploadedImages.splice(index, 1);
@@ -1272,47 +1287,132 @@ export class AdminPanel {
 
     const setupSizeEvents = () => {
       const sizeSelector = document.getElementById('adminSizeSelector');
-      if (sizeSelector) {
-        sizeSelector.addEventListener('click', (e) => {
-          const pill = e.target.closest('.admin-size-pill');
-          if (!pill) return;
-          const sz = pill.dataset.size;
-          if (selectedSizes.includes(sz)) {
-            selectedSizes = selectedSizes.filter(s => s !== sz);
-            pill.classList.remove('active');
-          } else {
-            selectedSizes.push(sz);
-            pill.classList.add('active');
-          }
-        });
-      }
-
+      const gridEl = document.getElementById('adminSizeStockGrid');
+      const badgeEl = document.getElementById('adminTotalStockBadge');
       const customInput = document.getElementById('customSizeInput');
       const addCustomBtn = document.getElementById('addCustomSizeBtn');
-      if (addCustomBtn && customInput && sizeSelector) {
-        const handleAddCustomSize = () => {
-          const val = customInput.value.trim().toUpperCase();
-          if (!val) return;
-          if (!selectedSizes.includes(val)) {
-            selectedSizes.push(val);
-            const newBtn = document.createElement('button');
-            newBtn.type = 'button';
-            newBtn.className = 'admin-size-pill active';
-            newBtn.dataset.size = val;
-            newBtn.innerText = val;
-            sizeSelector.appendChild(newBtn);
-          }
-          customInput.value = '';
-        };
 
-        addCustomBtn.addEventListener('click', handleAddCustomSize);
-        customInput.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            handleAddCustomSize();
-          }
+      const standardSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'];
+
+      const renderSizeStockUI = () => {
+        if (!sizeSelector || !gridEl) return;
+
+        const currentSizes = Object.keys(sizeStockMap);
+        const allKnownSizes = Array.from(new Set([...standardSizes, ...currentSizes]));
+
+        // 1. Render Selector Pills
+        sizeSelector.innerHTML = allKnownSizes.map(sz => {
+          const isSelected = sizeStockMap[sz] !== undefined;
+          return `
+            <button type="button" class="admin-size-pill ${isSelected ? 'active' : ''}" data-size="${sz}">
+              ${sz}
+            </button>
+          `;
+        }).join('');
+
+        // 2. Render Quantity Inputs Grid
+        if (currentSizes.length === 0) {
+          gridEl.innerHTML = `
+            <div style="grid-column: 1 / -1; color: #ef4444; font-size: 0.75rem; padding: 0.5rem 0;">
+              ⚠️ No sizes enabled. Click above to select at least one available size.
+            </div>
+          `;
+        } else {
+          gridEl.innerHTML = currentSizes.map(sz => {
+            const qty = sizeStockMap[sz] !== undefined ? sizeStockMap[sz] : 5;
+            const isOOS = qty === 0;
+            return `
+              <div class="size-stock-card" style="background: rgba(255,255,255,0.03); border: 1px solid ${isOOS ? 'rgba(239,68,68,0.4)' : 'var(--border-color)'}; border-radius: 6px; padding: 0.5rem 0.6rem; display: flex; flex-direction: column; gap: 0.35rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <strong style="color: #fff; font-size: 0.85rem;">Size ${sz}</strong>
+                  ${isOOS ? `<span style="font-size: 0.62rem; color: #ef4444; font-weight: 700;">OUT OF STOCK</span>` : ''}
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.35rem;">
+                  <span style="font-size: 0.7rem; color: var(--text-muted);">Qty:</span>
+                  <input 
+                    type="number" 
+                    min="0" 
+                    class="input-field size-qty-input" 
+                    data-size="${sz}" 
+                    value="${qty}" 
+                    style="padding: 0.3rem 0.5rem; font-size: 0.82rem; font-weight: 700; text-align: center; width: 100%;" 
+                  />
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+
+        // 3. Update Total Badge
+        const totalStock = Object.values(sizeStockMap).reduce((s, q) => s + (parseInt(q) || 0), 0);
+        if (badgeEl) {
+          badgeEl.innerText = `Total Stock: ${totalStock} units`;
+          badgeEl.style.color = totalStock > 0 ? 'var(--accent-gold)' : '#ef4444';
+        }
+
+        // 4. Wire size qty input changes
+        gridEl.querySelectorAll('.size-qty-input').forEach(inp => {
+          inp.addEventListener('input', (e) => {
+            const sz = e.target.getAttribute('data-size');
+            const val = Math.max(0, parseInt(e.target.value) || 0);
+            sizeStockMap[sz] = val;
+            const currentTotal = Object.values(sizeStockMap).reduce((s, q) => s + (parseInt(q) || 0), 0);
+            if (badgeEl) badgeEl.innerText = `Total Stock: ${currentTotal} units`;
+            
+            const card = e.target.closest('.size-stock-card');
+            if (card) {
+              card.style.borderColor = val === 0 ? 'rgba(239,68,68,0.4)' : 'var(--border-color)';
+              const oosLabel = card.querySelector('span[style*="#ef4444"]');
+              if (val === 0 && !oosLabel) {
+                const header = card.querySelector('div');
+                if (header) {
+                  const span = document.createElement('span');
+                  span.style.cssText = "font-size: 0.62rem; color: #ef4444; font-weight: 700;";
+                  span.innerText = "OUT OF STOCK";
+                  header.appendChild(span);
+                }
+              } else if (val > 0 && oosLabel) {
+                oosLabel.remove();
+              }
+            }
+          });
         });
-      }
+      };
+
+      // Wire pill toggle
+      sizeSelector?.addEventListener('click', (e) => {
+        const pill = e.target.closest('.admin-size-pill');
+        if (!pill) return;
+        const sz = pill.dataset.size;
+        if (sizeStockMap[sz] !== undefined) {
+          delete sizeStockMap[sz];
+        } else {
+          sizeStockMap[sz] = 10;
+        }
+        renderSizeStockUI();
+      });
+
+      // Wire custom size adder
+      const handleAddCustomSize = () => {
+        if (!customInput) return;
+        const val = customInput.value.trim().toUpperCase();
+        if (!val) return;
+        if (sizeStockMap[val] === undefined) {
+          sizeStockMap[val] = 10;
+        }
+        customInput.value = '';
+        renderSizeStockUI();
+      };
+
+      addCustomBtn?.addEventListener('click', handleAddCustomSize);
+      customInput?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          handleAddCustomSize();
+        }
+      });
+
+      renderSizeStockUI();
     };
 
     const setupHighlightsEvents = () => {
@@ -1432,8 +1532,9 @@ export class AdminPanel {
         return;
       }
 
-      if (selectedSizes.length === 0) {
-        store.showToast("Please select at least one available size for this product.", 'error');
+      const enabledSizes = Object.keys(sizeStockMap);
+      if (enabledSizes.length === 0) {
+        store.showToast("Please enable at least one available size for this product.", 'error');
         return;
       }
 
@@ -1443,11 +1544,15 @@ export class AdminPanel {
         .map(input => input.value.trim())
         .filter(val => val.length > 0);
 
+      const totalStock = Object.values(sizeStockMap).reduce((s, q) => s + (parseInt(q) || 0), 0);
+
       const formData = {
         name: document.getElementById('pName').value.trim(),
         category: document.getElementById('pCategory').value,
         price: parseFloat(document.getElementById('pPrice').value),
-        stockQty: parseInt(document.getElementById('pStockQty').value),
+        stockQty: totalStock,
+        sizeStock: sizeStockMap,
+        sizes: enabledSizes,
         isNewArrival: document.getElementById('pIsNewArrival')?.checked,
         imagePrimary: parsedImgs[0] || 'assets/tee_acid_wash.jpg',
         imageHover: parsedImgs[1] || parsedImgs[0] || 'assets/tee_acid_wash_hover.jpg',
@@ -1460,9 +1565,8 @@ export class AdminPanel {
         fit: document.getElementById('pFit')?.value.trim() || 'Boxy Oversized Fit',
         neckType: document.getElementById('pNeckType')?.value.trim() || 'Round Neck',
         sleeveType: document.getElementById('pSleeveType')?.value.trim() || 'Short Sleeves',
-        inStock: parseInt(document.getElementById('pStockQty').value) > 0,
-        badge: isEdit ? p.badge : 'NEW',
-        sizes: selectedSizes
+        inStock: totalStock > 0,
+        badge: isEdit ? p.badge : 'NEW'
       };
 
       if (isEdit) {

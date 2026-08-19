@@ -415,11 +415,14 @@ export class CheckoutModal {
       this.render();
     });
 
-    // Step 2 Place Order
+    // Step 2 Place Order with Stock Verification
     document.getElementById('placeOrderBtn')?.addEventListener('click', () => {
-      this.completedOrder = store.createOrder(this.shippingData);
-      this.step = 3;
-      this.render();
+      const result = store.createOrder(this.shippingData);
+      if (result && result.success) {
+        this.completedOrder = result.order;
+        this.step = 3;
+        this.render();
+      }
     });
 
     // Step 3 Finish

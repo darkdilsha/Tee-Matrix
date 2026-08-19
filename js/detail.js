@@ -20,7 +20,9 @@ export class ProductDetailModal {
       ? product.images 
       : [product.imagePrimary, product.imageHover].filter(Boolean);
 
-    this.selectedSize = product.sizes[0] || "M";
+    // Automatically pick the first size that is in stock
+    const availableSizes = (product.sizes || []).filter(sz => (product.sizeStock?.[sz] ?? (product.stockQty > 0 ? 5 : 0)) > 0);
+    this.selectedSize = availableSizes.length > 0 ? availableSizes[0] : null;
     this.qty = 1;
     this.activeImg = productImages[0] || product.imagePrimary;
 
@@ -45,10 +47,12 @@ export class ProductDetailModal {
     }
 
     const origPrice = Math.round(product.price * 1.25);
-    const inStock = product.inStock !== false && (product.stockQty === undefined || Number(product.stockQty) > 0);
+    const inStock = product.inStock !== false && (product.stockQty === undefined || Number(product.stockQty) > 0) && !!this.selectedSize;
     const relatedProducts = store.getProducts()
       .filter(p => p.id !== product.id)
       .slice(0, 4);
+
+    const selectedSizeStock = this.selectedSize ? (product.sizeStock?.[this.selectedSize] ?? product.stockQty) : 0;
 
     backdrop.innerHTML = `
       <div class="modal-content glass-panel" style="padding: 2.5rem 2rem; max-width: 860px; border-radius: 16px;">
@@ -147,18 +151,50 @@ export class ProductDetailModal {
                 </div>
               ` : ''}
 
-              <!-- Size Selector -->
+              <!-- Size Selector with Real-Time Stock Status -->
               <div style="margin-bottom: 1.25rem;">
                 <div style="display: flex; justify-content: space-between; margin-bottom: 0.6rem; font-size: 0.8rem;">
                   <span style="color: #fff; font-weight: 600;">SELECT SIZE:</span>
-                  <span style="color: var(--text-muted); text-decoration: underline; cursor: pointer;">SIZE GUIDE</span>
+                  <span style="color: var(--text-muted); font-size: 0.75rem;">Size-based stock check</span>
                 </div>
-                <div style="display: flex; gap: 0.6rem;">
-                  ${product.sizes.map(size => `
-                    <button class="size-btn ${this.selectedSize === size ? 'active' : ''}" data-size="${size}" style="padding: 0.5rem 1rem; border-radius: 6px; border: 1px solid ${this.selectedSize === size ? '#ffffff' : 'var(--border-color)'}; background: ${this.selectedSize === size ? '#ffffff' : 'transparent'}; color: ${this.selectedSize === size ? '#000000' : '#ffffff'}; font-weight: 700; font-size: 0.85rem; cursor: pointer;">
-                      ${size}
-                    </button>
-                  `).join('')}
+
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;" id="detailSizeList">
+                  ${(product.sizes || []).map(size => {
+                    const stock = product.sizeStock?.[size] !== undefined ? product.sizeStock[size] : (product.stockQty || 0);
+                    const isOOS = stock <= 0;
+                    const isSelected = this.selectedSize === size && !isOOS;
+
+                    return `
+                      <button 
+                        type="button"
+                        class="size-btn ${isSelected ? 'active' : ''} ${isOOS ? 'out-of-stock' : ''}" 
+                        data-size="${size}" 
+                        data-stock="${stock}"
+                        ${isOOS ? 'disabled' : ''}
+                        style="padding: 0.55rem 0.9rem; border-radius: 6px; border: 1px solid ${isSelected ? '#ffffff' : (isOOS ? 'rgba(255,255,255,0.08)' : 'var(--border-color)')}; background: ${isSelected ? '#ffffff' : (isOOS ? 'rgba(255,255,255,0.02)' : 'transparent')}; color: ${isSelected ? '#000000' : (isOOS ? 'rgba(255,255,255,0.25)' : '#ffffff')}; font-weight: 700; font-size: 0.82rem; cursor: ${isOOS ? 'not-allowed' : 'pointer'}; position: relative; transition: all 0.2s ease; ${isOOS ? 'text-decoration: line-through;' : ''}"
+                      >
+                        <span>${size}</span>
+                        ${isOOS ? `
+                          <span style="display: block; font-size: 0.62rem; font-weight: 500; text-decoration: none; color: #ef4444; margin-top: 2px;">Out of Stock</span>
+                        ` : ''}
+                      </button>
+                    `;
+                  }).join('')}
+                </div>
+
+                <!-- Size Stock Notice -->
+                <div id="sizeStockNotice" style="margin-top: 0.6rem; font-size: 0.75rem;">
+                  ${this.selectedSize ? (
+                    selectedSizeStock <= 0 ? `
+                      <span style="color: #ef4444; font-weight: 600;">⚠️ Size ${this.selectedSize} is currently Out of Stock</span>
+                    ` : selectedSizeStock <= 3 ? `
+                      <span style="color: #f59e0b; font-weight: 600;">⚠️ Only ${selectedSizeStock} left in size ${this.selectedSize}!</span>
+                    ` : `
+                      <span style="color: #10b981;">✓ In Stock (${selectedSizeStock} available in size ${this.selectedSize})</span>
+                    `
+                  ) : `
+                    <span style="color: #ef4444; font-weight: 600;">⚠️ All sizes are currently Out of Stock</span>
+                  `}
                 </div>
               </div>
 
@@ -166,9 +202,9 @@ export class ProductDetailModal {
               <div style="margin-bottom: 1.75rem;">
                 <span style="color: #fff; font-weight: 600; font-size: 0.8rem; display: block; margin-bottom: 0.5rem;">QUANTITY:</span>
                 <div style="display: inline-flex; border: 1px solid var(--border-color); border-radius: 6px; background: rgba(255,255,255,0.05); overflow: hidden;">
-                  <button id="qtyMinusBtn" style="padding: 0.5rem 0.9rem; color: #fff; font-size: 1.1rem; cursor: pointer;" ${!inStock ? 'disabled' : ''}>-</button>
+                  <button id="qtyMinusBtn" type="button" style="padding: 0.5rem 0.9rem; color: #fff; font-size: 1.1rem; cursor: pointer;" ${!inStock ? 'disabled' : ''}>-</button>
                   <span id="qtyVal" style="padding: 0.5rem 1.2rem; color: #fff; font-weight: 600; font-size: 0.9rem; border-left: 1px solid var(--border-color); border-right: 1px solid var(--border-color);">${this.qty}</span>
-                  <button id="qtyPlusBtn" style="padding: 0.5rem 0.9rem; color: #fff; font-size: 1.1rem; cursor: pointer;" ${!inStock ? 'disabled' : ''}>+</button>
+                  <button id="qtyPlusBtn" type="button" style="padding: 0.5rem 0.9rem; color: #fff; font-size: 1.1rem; cursor: pointer;" ${!inStock ? 'disabled' : ''}>+</button>
                 </div>
               </div>
             </div>
@@ -275,18 +311,52 @@ export class ProductDetailModal {
       });
     });
 
-    // Size selector buttons
+    // Size selector buttons with Stock Check
+    const updateSizeNotice = (size, stock) => {
+      const noticeEl = document.getElementById('sizeStockNotice');
+      if (!noticeEl) return;
+      if (stock <= 0) {
+        noticeEl.innerHTML = `<span style="color: #ef4444; font-weight: 600;">⚠️ Size ${size} is currently Out of Stock</span>`;
+      } else if (stock <= 3) {
+        noticeEl.innerHTML = `<span style="color: #f59e0b; font-weight: 600;">⚠️ Only ${stock} left in size ${size}!</span>`;
+      } else {
+        noticeEl.innerHTML = `<span style="color: #10b981;">✓ In Stock (${stock} available in size ${size})</span>`;
+      }
+    };
+
     document.querySelectorAll('.size-btn').forEach(btn => {
       btn.addEventListener('click', () => {
+        if (btn.disabled || btn.classList.contains('out-of-stock')) {
+          store.showToast("This size is currently Out of Stock", 'error');
+          return;
+        }
+
+        const size = btn.getAttribute('data-size');
+        const stock = parseInt(btn.getAttribute('data-stock')) || 0;
+
         document.querySelectorAll('.size-btn').forEach(b => {
-          b.style.background = 'transparent';
-          b.style.color = '#ffffff';
-          b.style.borderColor = 'var(--border-color)';
+          if (!b.classList.contains('out-of-stock')) {
+            b.style.background = 'transparent';
+            b.style.color = '#ffffff';
+            b.style.borderColor = 'var(--border-color)';
+            b.classList.remove('active');
+          }
         });
+
         btn.style.background = '#ffffff';
         btn.style.color = '#000000';
         btn.style.borderColor = '#ffffff';
-        this.selectedSize = btn.getAttribute('data-size');
+        btn.classList.add('active');
+
+        this.selectedSize = size;
+        updateSizeNotice(size, stock);
+
+        // Clamp quantity if it exceeds the newly selected size stock
+        if (this.qty > stock) {
+          this.qty = Math.max(1, stock);
+          const qtyEl = document.getElementById('qtyVal');
+          if (qtyEl) qtyEl.innerText = this.qty;
+        }
       });
     });
 
@@ -299,35 +369,68 @@ export class ProductDetailModal {
     });
 
     document.getElementById('qtyPlusBtn')?.addEventListener('click', () => {
+      if (!this.selectedSize) {
+        store.showToast("Please select a size first", 'error');
+        return;
+      }
+      const available = product.sizeStock?.[this.selectedSize] ?? (product.stockQty || 0);
+      if (this.qty >= available) {
+        store.showToast(`Only ${available} available in size ${this.selectedSize}.`, 'error');
+        return;
+      }
       this.qty++;
       document.getElementById('qtyVal').innerText = this.qty;
     });
 
     // Add to Cart
     document.getElementById('detailAddToCartBtn')?.addEventListener('click', () => {
+      if (!this.selectedSize) {
+        store.showToast("Please select an available size", 'error');
+        return;
+      }
+      const available = product.sizeStock?.[this.selectedSize] ?? 0;
+      if (available <= 0) {
+        store.showToast(`Size ${this.selectedSize} is currently Out of Stock`, 'error');
+        return;
+      }
+
       if (!store.isCustomerLoggedIn()) {
         authModal.open('login', 'Please verify mobile OTP to add items to cart', () => {
-          store.addToCart(product.id, this.selectedSize, this.qty);
-          this.close();
+          const added = store.addToCart(product.id, this.selectedSize, this.qty);
+          if (added) this.close();
         });
       } else {
-        store.addToCart(product.id, this.selectedSize, this.qty);
-        this.close();
+        const added = store.addToCart(product.id, this.selectedSize, this.qty);
+        if (added) this.close();
       }
     });
 
     // Buy Now
     document.getElementById('detailBuyNowBtn')?.addEventListener('click', () => {
+      if (!this.selectedSize) {
+        store.showToast("Please select an available size", 'error');
+        return;
+      }
+      const available = product.sizeStock?.[this.selectedSize] ?? 0;
+      if (available <= 0) {
+        store.showToast(`Size ${this.selectedSize} is currently Out of Stock`, 'error');
+        return;
+      }
+
       if (!store.isCustomerLoggedIn()) {
         authModal.open('login', 'Please verify mobile OTP to proceed with Instant Buy', () => {
-          store.addToCart(product.id, this.selectedSize, this.qty);
-          this.close();
-          window.dispatchEvent(new CustomEvent('openCheckout'));
+          const added = store.addToCart(product.id, this.selectedSize, this.qty);
+          if (added) {
+            this.close();
+            window.dispatchEvent(new CustomEvent('openCheckout'));
+          }
         });
       } else {
-        store.addToCart(product.id, this.selectedSize, this.qty);
-        this.close();
-        window.dispatchEvent(new CustomEvent('openCheckout'));
+        const added = store.addToCart(product.id, this.selectedSize, this.qty);
+        if (added) {
+          this.close();
+          window.dispatchEvent(new CustomEvent('openCheckout'));
+        }
       }
     });
 

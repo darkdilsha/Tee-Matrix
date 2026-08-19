@@ -18,6 +18,7 @@ const INITIAL_PRODUCTS = [
       "Machine Washable"
     ],
     sizes: ["S", "M", "L", "XL"],
+    sizeStock: { "S": 10, "M": 15, "L": 12, "XL": 8 },
     colors: ["Charcoal", "Jet Black"],
     imagePrimary: "assets/tee_acid_wash.jpg",
     imageHover: "assets/tee_acid_wash_hover.jpg",
@@ -50,6 +51,7 @@ const INITIAL_PRODUCTS = [
       "Machine Washable"
     ],
     sizes: ["XS", "S", "M", "L", "XL"],
+    sizeStock: { "XS": 5, "S": 8, "M": 10, "L": 7, "XL": 0 },
     colors: ["Off-White", "Bone White"],
     imagePrimary: "assets/tee_cyberpunk.jpg",
     imageHover: "assets/tee_model_white.jpg",
@@ -82,6 +84,7 @@ const INITIAL_PRODUCTS = [
       "Machine Washable"
     ],
     sizes: ["S", "M", "L", "XL", "XXL"],
+    sizeStock: { "S": 12, "M": 18, "L": 20, "XL": 10, "XXL": 0 },
     colors: ["Jet Black"],
     imagePrimary: "assets/tee_black_heavy.jpg",
     imageHover: "assets/hero_banner.jpg",
@@ -114,6 +117,7 @@ const INITIAL_PRODUCTS = [
       "Machine Washable"
     ],
     sizes: ["S", "M", "L", "XL"],
+    sizeStock: { "S": 6, "M": 9, "L": 10, "XL": 0 },
     colors: ["Off-White", "Cream"],
     imagePrimary: "assets/tee_model_white.jpg",
     imageHover: "assets/tee_cyberpunk.jpg",
@@ -146,6 +150,7 @@ const INITIAL_PRODUCTS = [
       "Machine Washable"
     ],
     sizes: ["M", "L", "XL"],
+    sizeStock: { "M": 6, "L": 8, "XL": 4 },
     colors: ["Charcoal Acid"],
     imagePrimary: "assets/tee_acid_wash_hover.jpg",
     imageHover: "assets/tee_acid_wash.jpg",
@@ -178,6 +183,7 @@ const INITIAL_PRODUCTS = [
       "Machine Washable"
     ],
     sizes: ["S", "M", "L", "XL"],
+    sizeStock: { "S": 10, "M": 12, "L": 10, "XL": 8 },
     colors: ["Midnight Black"],
     imagePrimary: "assets/story_campaign.jpg",
     imageHover: "assets/hero_banner.jpg",
@@ -243,6 +249,26 @@ class StoreService {
           try { sizes = JSON.parse(p.sizes); } catch (_) { sizes = p.sizes.split(',').map(s => s.trim()).filter(Boolean); }
         }
 
+        // Per-Size Inventory Normalization
+        let sizeStock = {};
+        if (p.sizeStock && typeof p.sizeStock === 'object') {
+          sizeStock = { ...p.sizeStock };
+        } else if (typeof p.sizeStock === 'string') {
+          try { sizeStock = JSON.parse(p.sizeStock); } catch (_) { sizeStock = {}; }
+        }
+
+        const sizesList = Array.isArray(sizes) && sizes.length > 0 ? sizes : ['S', 'M', 'L', 'XL'];
+        sizesList.forEach(sz => {
+          if (sizeStock[sz] === undefined) {
+            sizeStock[sz] = p.stockQty !== undefined ? Math.max(0, Math.floor(Number(p.stockQty) / sizesList.length)) : 5;
+          } else {
+            sizeStock[sz] = Math.max(0, Number(sizeStock[sz]) || 0);
+          }
+        });
+
+        const totalStock = Object.values(sizeStock).reduce((sum, q) => sum + (Number(q) || 0), 0);
+        const inStock = totalStock > 0;
+
         let images = [p.imagePrimary, p.imageHover].filter(Boolean);
         if (Array.isArray(p.images) && p.images.length > 0) {
           images = p.images;
@@ -274,9 +300,10 @@ class StoreService {
         return {
           ...p,
           price: Number(p.price) || 0,
-          stockQty: Number(p.stockQty) !== undefined ? Number(p.stockQty) : 10,
-          inStock: p.inStock !== false && (p.stockQty === undefined || Number(p.stockQty) > 0),
-          sizes: Array.isArray(sizes) && sizes.length > 0 ? sizes : ['S', 'M', 'L', 'XL'],
+          stockQty: totalStock,
+          sizeStock: sizeStock,
+          inStock: inStock,
+          sizes: sizesList,
           images: Array.isArray(images) && images.length > 0 ? images : [p.imagePrimary || 'assets/tee_black_heavy.jpg'],
           description: p.description || "A comfortable everyday T-shirt made from soft, breathable cotton. Designed with a clean regular fit and classic round neck.",
           highlights: highlights,
@@ -295,6 +322,41 @@ class StoreService {
 
   getProductById(id) {
     return this.getProducts().find(p => p.id === id);
+  }
+
+  getSizeStock(productId, size) {
+    const product = this.getProductById(productId);
+    if (!product || !product.sizeStock) return 0;
+    return Number(product.sizeStock[size]) || 0;
+  }
+
+  isSizeInStock(productId, size) {
+    return this.getSizeStock(productId, size) > 0;
+  }
+
+  decreaseSizeStock(productId, size, quantity) {
+    let products = this.getProducts();
+    let updatedProduct = null;
+    products = products.map(p => {
+      if (p.id === productId) {
+        const currentStock = { ...p.sizeStock };
+        const currentQty = Number(currentStock[size]) || 0;
+        currentStock[size] = Math.max(0, currentQty - quantity);
+        const totalStock = Object.values(currentStock).reduce((s, q) => s + (Number(q) || 0), 0);
+        updatedProduct = {
+          ...p,
+          sizeStock: currentStock,
+          stockQty: totalStock,
+          inStock: totalStock > 0
+        };
+        return updatedProduct;
+      }
+      return p;
+    });
+
+    localStorage.setItem('tm_products', JSON.stringify(products));
+    this.notify();
+    return updatedProduct;
   }
 
   getNewArrivals() {
@@ -320,12 +382,30 @@ class StoreService {
           "Machine Washable"
         ];
 
+    // Compute sizeStock & total stockQty
+    let sizeStock = productData.sizeStock || {};
+    const sizes = Array.isArray(productData.sizes) && productData.sizes.length > 0 
+      ? productData.sizes 
+      : Object.keys(sizeStock).length > 0 ? Object.keys(sizeStock) : ['S', 'M', 'L', 'XL'];
+
+    sizes.forEach(sz => {
+      if (sizeStock[sz] === undefined) {
+        sizeStock[sz] = 10;
+      } else {
+        sizeStock[sz] = Math.max(0, parseInt(sizeStock[sz]) || 0);
+      }
+    });
+
+    const totalStock = Object.values(sizeStock).reduce((sum, q) => sum + (parseInt(q) || 0), 0);
+
     const newProduct = {
       id: `tm-${Date.now().toString().slice(-4)}`,
       ...productData,
       price: parseFloat(productData.price) || 0,
-      stockQty: parseInt(productData.stockQty) || 10,
-      inStock: productData.inStock !== undefined ? productData.inStock : true,
+      sizes: sizes,
+      sizeStock: sizeStock,
+      stockQty: totalStock,
+      inStock: totalStock > 0,
       isNewArrival: productData.isNewArrival !== undefined ? productData.isNewArrival : true,
       images: imgs,
       description: productData.description || "",
@@ -352,11 +432,29 @@ class StoreService {
           ? updatedData.highlights
           : (p.highlights || []);
 
+        let sizeStock = updatedData.sizeStock !== undefined ? { ...updatedData.sizeStock } : { ...p.sizeStock };
+        const sizes = Array.isArray(updatedData.sizes) && updatedData.sizes.length > 0 
+          ? updatedData.sizes 
+          : (Array.isArray(p.sizes) ? p.sizes : ['S', 'M', 'L', 'XL']);
+
+        sizes.forEach(sz => {
+          if (sizeStock[sz] === undefined) {
+            sizeStock[sz] = 5;
+          } else {
+            sizeStock[sz] = Math.max(0, parseInt(sizeStock[sz]) || 0);
+          }
+        });
+
+        const totalStock = Object.values(sizeStock).reduce((sum, q) => sum + (parseInt(q) || 0), 0);
+
         const updated = {
           ...p,
           ...updatedData,
           price: parseFloat(updatedData.price) || p.price,
-          stockQty: parseInt(updatedData.stockQty) !== undefined ? parseInt(updatedData.stockQty) : p.stockQty,
+          sizes: sizes,
+          sizeStock: sizeStock,
+          stockQty: totalStock,
+          inStock: totalStock > 0,
           isNewArrival: updatedData.isNewArrival !== undefined ? updatedData.isNewArrival : p.isNewArrival,
           images: imgs.length > 0 ? imgs : (p.images || [p.imagePrimary]),
           description: updatedData.description !== undefined ? updatedData.description : p.description,
@@ -413,24 +511,29 @@ class StoreService {
 
   addToCart(productId, size = "M", qty = 1) {
     const product = this.getProductById(productId);
-    if (!product) return;
+    if (!product) return false;
 
-    const inStock = product.inStock !== false && (product.stockQty === undefined || Number(product.stockQty) > 0);
-    if (!inStock) {
-      this.showToast(`"${product.name}" is currently out of stock`, 'error');
-      return;
+    const available = this.getSizeStock(productId, size);
+    if (available <= 0) {
+      this.showToast(`Size "${size}" is currently out of stock`, 'error');
+      return false;
     }
 
     let cart = this.getCart();
     const existingIndex = cart.findIndex(item => item.id === productId && item.size === size);
 
     if (existingIndex > -1) {
-      if (product.stockQty && (cart[existingIndex].qty + qty) > Number(product.stockQty)) {
-        this.showToast(`Only ${product.stockQty} item(s) available in stock`, 'error');
-        return;
+      const newQty = cart[existingIndex].qty + qty;
+      if (newQty > available) {
+        this.showToast(`Only ${available} available in size ${size}.`, 'error');
+        return false;
       }
-      cart[existingIndex].qty += qty;
+      cart[existingIndex].qty = newQty;
     } else {
+      if (qty > available) {
+        this.showToast(`Only ${available} available in size ${size}.`, 'error');
+        return false;
+      }
       cart.push({
         id: product.id,
         name: product.name,
@@ -445,16 +548,28 @@ class StoreService {
     localStorage.setItem('tm_cart', JSON.stringify(cart));
     this.notify();
     this.showToast(`Added "${product.name}" (${size}) to Cart`);
+    return true;
   }
 
   updateCartQty(productId, size, change) {
     let cart = this.getCart();
-    cart = cart.map(item => {
-      if (item.id === productId && item.size === size) {
-        const newQty = item.qty + change;
-        return newQty > 0 ? { ...item, qty: newQty } : null;
+    const item = cart.find(i => i.id === productId && i.size === size);
+    if (!item) return;
+
+    if (change > 0) {
+      const available = this.getSizeStock(productId, size);
+      if (item.qty + change > available) {
+        this.showToast(`Only ${available} available in size ${size}.`, 'error');
+        return;
       }
-      return item;
+    }
+
+    cart = cart.map(i => {
+      if (i.id === productId && i.size === size) {
+        const newQty = i.qty + change;
+        return newQty > 0 ? { ...i, qty: newQty } : null;
+      }
+      return i;
     }).filter(Boolean);
 
     localStorage.setItem('tm_cart', JSON.stringify(cart));
@@ -484,7 +599,7 @@ class StoreService {
     };
   }
 
-  // Orders
+  // Orders with Strict Per-Size Stock Verification and Atomic Deduction
   getOrders() {
     try {
       return JSON.parse(localStorage.getItem('tm_orders')) || [];
@@ -495,7 +610,24 @@ class StoreService {
 
   createOrder(shippingInfo) {
     const cart = this.getCart();
-    if (cart.length === 0) return null;
+    if (cart.length === 0) return { success: false, message: "Your cart is empty" };
+
+    // 1. Rigorous Pre-Order Stock Validation across all items & sizes
+    for (const item of cart) {
+      const available = this.getSizeStock(item.id, item.size);
+      if (item.qty > available) {
+        const msg = available === 0 
+          ? `"${item.name}" (Size: ${item.size}) is now Out of Stock. Please update your cart.`
+          : `Only ${available} available in size ${item.size} for "${item.name}".`;
+        this.showToast(msg, 'error');
+        return { success: false, message: msg };
+      }
+    }
+
+    // 2. Decrease Stock strictly for the exact purchased sizes
+    cart.forEach(item => {
+      this.decreaseSizeStock(item.id, item.size, item.qty);
+    });
 
     const totals = this.getCartTotal();
     const newOrder = {
@@ -516,7 +648,7 @@ class StoreService {
     orders.unshift(newOrder);
     localStorage.setItem('tm_orders', JSON.stringify(orders));
     this.clearCart();
-    return newOrder;
+    return { success: true, order: newOrder };
   }
 
   // Admin Accounts & Security Database
@@ -674,10 +806,12 @@ class StoreService {
     container.appendChild(toast);
 
     setTimeout(() => {
-      toast.style.opacity = '0';
-      toast.style.transform = 'translateX(100%)';
-      toast.style.transition = 'all 0.3s ease';
-      setTimeout(() => toast.remove(), 300);
+      if (toast && toast.style) {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(100%)';
+        toast.style.transition = 'all 0.3s ease';
+      }
+      setTimeout(() => toast?.remove?.(), 300);
     }, 3000);
   }
 }

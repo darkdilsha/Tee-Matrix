@@ -1551,5 +1551,57 @@ button {
   animation: fadeIn 0.4s ease forwards;
 }
 
+/* Size-based Inventory UI */
+.size-btn {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
 
+.size-btn:hover:not(:disabled):not(.out-of-stock) {
+  border-color: #ffffff !important;
+  color: #ffffff !important;
+  transform: translateY(-1px);
+}
 
+.size-btn.out-of-stock {
+  opacity: 0.45;
+  cursor: not-allowed !important;
+  position: relative;
+}
+
+.size-btn.out-of-stock:hover {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+
+.size-stock-card {
+  transition: all 0.2s ease;
+}
+
+.size-stock-card:focus-within {
+  border-color: var(--accent-gold) !important;
+  background: rgba(245, 158, 11, 0.04) !important;
+}
+
+.admin-size-pill {
+  padding: 0.4rem 0.85rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.admin-size-pill:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #fff;
+}
+
+.admin-size-pill.active {
+  background: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+  box-shadow: 0 2px 8px rgba(255, 255, 255, 0.2);
+}
