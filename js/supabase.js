@@ -2,8 +2,7 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
 const SUPABASE_URL = 'https://gqjpwnxnloltfzpqqipi.supabase.co';
-// Public Anon Key placeholder - allows Supabase REST & dev fallback mode
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxanB3bnhub2x0ZnpwcXFpcGkiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTczOTYyNjcwMCwiZXhwIjoyMDU1MjAyNzAwfQ.dummy';
+const SUPABASE_ANON_KEY = 'sb_publishable_9pvBeEruDCaGN7tYTY1-JA_Y13NJ-o_';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
