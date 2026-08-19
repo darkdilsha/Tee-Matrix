@@ -182,6 +182,51 @@ export class SupabaseService {
     }
   }
 
+  // 4b. Product Image Upload to Supabase Storage
+  async uploadProductImage(file) {
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
+      const filePath = `products/${fileName}`;
+
+      const { data, error } = await supabase.storage
+        .from('product-images')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (error) throw error;
+
+      const { data: publicData } = supabase.storage
+        .from('product-images')
+        .getPublicUrl(filePath);
+
+      return { success: true, url: publicData.publicUrl, path: filePath };
+    } catch (err) {
+      console.error('Supabase Storage upload error:', err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  async deleteProductImage(pathOrUrl) {
+    try {
+      let filePath = pathOrUrl;
+      if (pathOrUrl.includes('/storage/v1/object/public/product-images/')) {
+        filePath = pathOrUrl.split('/storage/v1/object/public/product-images/')[1];
+      }
+      const { data, error } = await supabase.storage
+        .from('product-images')
+        .remove([filePath]);
+
+      if (error) throw error;
+      return { success: true };
+    } catch (err) {
+      console.error('Supabase Storage delete error:', err);
+      return { success: false, error: err.message };
+    }
+  }
+
   // 5. Addresses CRUD Operations
   async fetchUserAddresses(phone) {
     try {

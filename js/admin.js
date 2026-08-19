@@ -651,6 +651,26 @@ export class AdminPanel {
       badge: 'NEW'
     };
 
+    // State to store images associated with this product form
+    let uploadedImages = [];
+    if (isEdit && p.images) {
+      uploadedImages = p.images.map(img => ({
+        url: img,
+        id: Math.random().toString(),
+        file: null,
+        uploading: false,
+        error: false
+      }));
+    } else if (p.imagePrimary || p.imageHover) {
+      uploadedImages = [p.imagePrimary, p.imageHover].filter(Boolean).map(img => ({
+        url: img,
+        id: Math.random().toString(),
+        file: null,
+        uploading: false,
+        error: false
+      }));
+    }
+
     modal.innerHTML = `
       <div class="modal-content glass-panel" style="max-width: 700px; padding: 2.5rem;">
         <button class="modal-close" id="closeFormBtn">
@@ -699,12 +719,27 @@ export class AdminPanel {
             </label>
           </div>
 
-          <!-- Multi-Photo Gallery Inputs -->
+          <!-- Drag & Drop Image Upload Zone -->
           <div>
-            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem;">PRODUCT GALLERY PHOTOS (Comma-Separated URLs or File Paths) *</label>
-            <textarea id="pImagesList" class="input-field" rows="3" placeholder="assets/tee_acid_wash.jpg, assets/tee_acid_wash_hover.jpg, assets/hero_banner.jpg">${(p.images || [p.imagePrimary, p.imageHover]).filter(Boolean).join(',\n')}</textarea>
+            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem;">PRODUCT GALLERY IMAGES *</label>
+            
+            <div id="adminUploadZone" class="admin-upload-zone">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+              <span>Drag images here or click to upload</span>
+              <small>Accepted formats: JPG, PNG, WEBP (Max size: 5MB)</small>
+              <input type="file" id="pFileInput" multiple accept="image/jpeg,image/png,image/webp" style="display: none;" />
+            </div>
+
+            <div id="adminUploadThumbs" class="admin-upload-thumbs">
+              <!-- Rendered Dynamically -->
+            </div>
+            
             <span style="font-size: 0.7rem; color: var(--text-muted); display: block; margin-top: 0.3rem;">
-              Enter multiple image URLs or file paths (one per line or separated by commas) to give customers a full multi-angle photo gallery!
+              First image is the PRIMARY product photo. Second image is the HOVER photo. Drag thumbnails to reorder them!
             </span>
           </div>
 
@@ -721,6 +756,217 @@ export class AdminPanel {
       </div>
     `;
 
+    // Dynamic UI Handlers for Thumbnails List
+    const thumbsContainer = document.getElementById('adminUploadThumbs');
+
+    const deleteImage = (index) => {
+      const img = uploadedImages[index];
+      uploadedImages.splice(index, 1);
+      renderThumbnails();
+
+      // Clean up Supabase Storage file in background if possible
+      if (img.url && img.url.includes('/storage/v1/object/public/product-images/')) {
+        supabaseService.deleteProductImage(img.url).then(res => {
+          if (!res.success) console.warn('Failed to delete image from storage:', res.error);
+        });
+      }
+    };
+
+    const initDraggableThumbs = () => {
+      if (!thumbsContainer) return;
+      const thumbEls = Array.from(thumbsContainer.querySelectorAll('.admin-upload-thumb'));
+      if (thumbEls.length <= 1) return;
+
+      thumbEls.forEach((el) => {
+        const idx = parseInt(el.dataset.index);
+        if (uploadedImages[idx].uploading) return;
+
+        Draggable.create(el, {
+          type: "x,y",
+          bounds: thumbsContainer,
+          edgeResistance: 0.65,
+          onPress: function() {
+            el.classList.add('dragging');
+            gsap.set(el, { zIndex: 100 });
+          },
+          onRelease: function() {
+            el.classList.remove('dragging');
+            gsap.set(el, { zIndex: '' });
+
+            const items = Array.from(thumbsContainer.querySelectorAll('.admin-upload-thumb'));
+            const rects = items.map(item => {
+              const rect = item.getBoundingClientRect();
+              return {
+                index: parseInt(item.dataset.index),
+                left: rect.left + window.scrollX,
+                top: rect.top + window.scrollY
+              };
+            });
+
+            // Sort left-to-right (handles multi-row wraps using top thresholds)
+            rects.sort((a, b) => {
+              if (Math.abs(a.top - b.top) > 30) {
+                return a.top - b.top;
+              }
+              return a.left - b.left;
+            });
+
+            const orderChanged = rects.some((r, i) => r.index !== i);
+            if (orderChanged) {
+              const reordered = rects.map(r => uploadedImages[r.index]);
+              uploadedImages = reordered;
+              renderThumbnails();
+            } else {
+              gsap.set(el, { x: 0, y: 0 });
+            }
+          }
+        });
+      });
+    };
+
+    const renderThumbnails = () => {
+      if (!thumbsContainer) return;
+
+      // Kill any active Draggable instances on elements to prevent leaks
+      thumbsContainer.querySelectorAll('.admin-upload-thumb').forEach(el => {
+        const drag = Draggable.get(el);
+        if (drag) drag.kill();
+      });
+
+      if (uploadedImages.length === 0) {
+        thumbsContainer.innerHTML = `
+          <div style="color: var(--text-muted); font-size: 0.8rem; padding: 1.5rem; text-align: center; width: 100%;">
+            No images uploaded yet.
+          </div>
+        `;
+        return;
+      }
+
+      thumbsContainer.innerHTML = uploadedImages.map((img, idx) => {
+        let badgeClass = '';
+        let badgeText = '';
+        if (idx === 0) {
+          badgeClass = 'primary';
+          badgeText = 'PRIMARY';
+        } else if (idx === 1) {
+          badgeClass = 'hover';
+          badgeText = 'HOVER';
+        } else {
+          badgeText = `LOOK ${String(idx + 1).padStart(2, '0')}`;
+        }
+
+        return `
+          <div class="admin-upload-thumb" data-index="${idx}">
+            <img src="${img.url}" alt="Thumbnail ${idx}" />
+            <button type="button" class="remove-btn" data-index="${idx}">&times;</button>
+            ${img.uploading ? `
+              <div class="progress-overlay">
+                <div class="spinner"></div>
+                <div class="progress-text">UPLOADING</div>
+              </div>
+            ` : ''}
+            ${img.error ? `
+              <div class="progress-overlay" style="background: rgba(239, 68, 68, 0.85);">
+                <div style="font-size: 14px; margin-bottom: 2px;">⚠️</div>
+                <div class="progress-text">FAILED</div>
+              </div>
+            ` : ''}
+            <div class="status-badge ${badgeClass}">${badgeText}</div>
+          </div>
+        `;
+      }).join('');
+
+      thumbsContainer.querySelectorAll('.remove-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const idx = parseInt(btn.dataset.index);
+          deleteImage(idx);
+        });
+      });
+
+      initDraggableThumbs();
+    };
+
+    const handleFiles = (files) => {
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+
+        if (!allowedTypes.includes(file.type)) {
+          store.showToast(`Invalid format for "${file.name}". Only JPG, PNG, and WEBP are allowed.`, 'error');
+          continue;
+        }
+
+        if (file.size > 5 * 1024 * 1024) {
+          store.showToast(`"${file.name}" exceeds the 5MB file size limit.`, 'error');
+          continue;
+        }
+
+        const tempId = Math.random().toString();
+        const tempUrl = URL.createObjectURL(file);
+        const imgObj = {
+          url: tempUrl,
+          id: tempId,
+          file: file,
+          uploading: true,
+          error: false
+        };
+
+        uploadedImages.push(imgObj);
+        renderThumbnails();
+
+        supabaseService.uploadProductImage(file).then(res => {
+          if (res.success) {
+            imgObj.url = res.url;
+            imgObj.uploading = false;
+          } else {
+            imgObj.uploading = false;
+            imgObj.error = true;
+            store.showToast(`Upload failed for "${file.name}": ${res.error}`, 'error');
+          }
+          renderThumbnails();
+        }).catch(err => {
+          imgObj.uploading = false;
+          imgObj.error = true;
+          store.showToast(`Upload failed for "${file.name}"`, 'error');
+          renderThumbnails();
+        });
+      }
+    };
+
+    const setupUploadEvents = () => {
+      const zone = document.getElementById('adminUploadZone');
+      const fileInput = document.getElementById('pFileInput');
+      if (!zone || !fileInput) return;
+
+      zone.addEventListener('click', () => fileInput.click());
+
+      zone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        zone.classList.add('dragover');
+      });
+
+      zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+
+      zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        zone.classList.remove('dragover');
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          handleFiles(e.dataTransfer.files);
+        }
+      });
+
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+          handleFiles(e.target.files);
+        }
+      });
+    };
+
+    // Initial render and setup
+    renderThumbnails();
+    setupUploadEvents();
+
     setTimeout(() => modal.classList.add('active'), 10);
 
     document.getElementById('closeFormBtn')?.addEventListener('click', () => modal.classList.remove('active'));
@@ -728,8 +974,20 @@ export class AdminPanel {
 
     document.getElementById('productSaveForm')?.addEventListener('submit', (e) => {
       e.preventDefault();
-      const rawImgInput = document.getElementById('pImagesList')?.value || '';
-      const parsedImgs = rawImgInput.split(/[\n,]/).map(s => s.trim()).filter(Boolean);
+
+      const isUploading = uploadedImages.some(img => img.uploading);
+      if (isUploading) {
+        store.showToast("Please wait for all images to finish uploading before saving.", 'error');
+        return;
+      }
+
+      const validImages = uploadedImages.filter(img => !img.error && img.url);
+      const parsedImgs = validImages.map(img => img.url);
+
+      if (parsedImgs.length === 0) {
+        store.showToast("At least one product image is required.", 'error');
+        return;
+      }
 
       const formData = {
         name: document.getElementById('pName').value,

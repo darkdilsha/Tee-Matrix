@@ -519,7 +519,7 @@ class StoreService {
   }
 
   // Toast floating notification
-  showToast(message) {
+  showToast(message, type = 'success') {
     let container = document.getElementById('toast-container');
     if (!container) {
       container = document.createElement('div');
@@ -529,11 +529,14 @@ class StoreService {
     }
 
     const toast = document.createElement('div');
-    toast.className = 'toast';
+    toast.className = `toast ${type}`;
+    
+    const svgIcon = type === 'error'
+      ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`
+      : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+
     toast.innerHTML = `
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <polyline points="20 6 9 17 4 12"></polyline>
-      </svg>
+      ${svgIcon}
       <span>${message}</span>
     `;
     container.appendChild(toast);
