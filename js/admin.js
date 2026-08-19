@@ -691,7 +691,7 @@ export class AdminPanel {
         ]);
 
     modal.innerHTML = `
-      <div class="modal-content glass-panel" style="max-width: 720px; padding: 2.5rem; max-height: 90vh; overflow-y: auto;">
+      <div class="modal-content glass-panel" style="max-width: 760px; padding: 2.2rem; max-height: 92vh; overflow-y: auto;">
         <button class="modal-close" id="closeFormBtn">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -699,141 +699,202 @@ export class AdminPanel {
           </svg>
         </button>
 
-        <h2 style="font-family: var(--font-heading); font-size: 1.8rem; color: #fff; margin-bottom: 1.5rem;">
-          ${isEdit ? 'EDIT PRODUCT' : 'ADD NEW PRODUCT'}
-        </h2>
+        <div style="margin-bottom: 1.5rem;">
+          <h2 style="font-family: var(--font-heading); font-size: 1.8rem; color: #fff; margin-bottom: 0.3rem;">
+            ${isEdit ? 'EDIT PRODUCT' : 'FAST PRODUCT CREATOR'}
+          </h2>
+          <p style="font-size: 0.82rem; color: var(--text-secondary); margin: 0;">
+            Upload T-shirt photo &rarr; AI analyzes visual features &rarr; Review & Save
+          </p>
+        </div>
 
-        <form id="productSaveForm" style="display: flex; flex-direction: column; gap: 1.25rem;">
-          <div>
-            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem; font-weight: 600;">PRODUCT TITLE *</label>
-            <input type="text" id="pName" required class="input-field" value="${p.name}" placeholder="e.g. Matrix Acid Wash Heavyweight Tee" />
-          </div>
-
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-            <div>
-              <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem; font-weight: 600;">CATEGORY</label>
-              <select id="pCategory" class="sort-select" style="width: 100%;">
-                <option value="Acid Wash" ${p.category === 'Acid Wash' ? 'selected' : ''}>Acid Wash</option>
-                <option value="Graphic" ${p.category === 'Graphic' ? 'selected' : ''}>Graphic</option>
-                <option value="Heavyweight Minimal" ${p.category === 'Heavyweight Minimal' ? 'selected' : ''}>Heavyweight Minimal</option>
-                <option value="Vintage" ${p.category === 'Vintage' ? 'selected' : ''}>Vintage</option>
-              </select>
+        <form id="productSaveForm" style="display: flex; flex-direction: column; gap: 1.4rem;">
+          
+          <!-- STEP 1: PRODUCT IMAGE UPLOAD (TOP PRIORITY) -->
+          <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.25rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+              <span style="font-size: 0.8rem; font-weight: 700; color: var(--accent-gold); letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.4rem;">
+                <span>📸</span> STEP 1 — PRODUCT IMAGE
+              </span>
+              <span style="font-size: 0.7rem; color: var(--text-muted);">First image is Primary</span>
             </div>
-            <div>
-              <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem; font-weight: 600;">PRICE (₹ INR) *</label>
-              <input type="number" step="1" id="pPrice" required class="input-field" value="${p.price}" />
-            </div>
-          </div>
 
-          <div>
-            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem; font-weight: 600;">STOCK QUANTITY</label>
-            <input type="number" id="pStockQty" required class="input-field" value="${p.stockQty}" />
-          </div>
-
-          <!-- New Arrival Option -->
-          <div style="padding: 0.8rem 1rem; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); display: flex; align-items: center; gap: 0.75rem; border-radius: 8px;">
-            <input type="checkbox" id="pIsNewArrival" ${p.isNewArrival ? 'checked' : ''} style="width: 18px; height: 18px; cursor: pointer;" />
-            <label for="pIsNewArrival" style="color: #fff; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
-              Add to "New Arrivals" Section on Homepage Landing Page
-            </label>
-          </div>
-
-          <!-- Drag & Drop Image Upload Zone -->
-          <div>
-            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem; font-weight: 600;">PRODUCT GALLERY IMAGES *</label>
-            
-            <div id="adminUploadZone" class="admin-upload-zone">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <div id="adminUploadZone" class="admin-upload-zone" style="padding: 2.2rem 1rem; border-width: 2px; border-style: dashed; text-align: center; cursor: pointer; transition: all 0.2s ease;">
+              <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 0.5rem;">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
                 <circle cx="8.5" cy="8.5" r="1.5"/>
                 <polyline points="21 15 16 10 5 21"/>
               </svg>
-              <span>Drag images here or click to upload</span>
-              <small>Accepted formats: JPG, PNG, WEBP (Max size: 5MB)</small>
+              <div style="font-size: 0.95rem; font-weight: 600; color: #fff;">Drop T-Shirt photo here or browse</div>
+              <small style="color: var(--text-muted); display: block; margin-top: 0.25rem;">AI will automatically analyze the image and generate product details</small>
               <input type="file" id="pFileInput" multiple accept="image/jpeg,image/png,image/webp" style="display: none;" />
             </div>
 
-            <!-- AI Image Vision Analysis Status Banner -->
-            <div id="aiStatusContainer" style="display: none; margin-top: 0.6rem; padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.8rem; transition: all 0.3s ease;">
+            <!-- AI Status Banner -->
+            <div id="aiStatusContainer" style="display: none; margin-top: 0.75rem; padding: 0.85rem 1.1rem; border-radius: 8px; font-size: 0.82rem; transition: all 0.3s ease;">
               <!-- Populated Dynamically -->
             </div>
 
-            <div id="adminUploadThumbs" class="admin-upload-thumbs">
+            <!-- Uploaded Image Thumbnails -->
+            <div id="adminUploadThumbs" class="admin-upload-thumbs" style="margin-top: 0.85rem;">
               <!-- Rendered Dynamically -->
             </div>
             
-            <span style="font-size: 0.7rem; color: var(--text-muted); display: block; margin-top: 0.3rem;">
-              First image is the PRIMARY product photo. Second image is the HOVER photo. Drag thumbnails to reorder them!
+            <span style="font-size: 0.7rem; color: var(--text-muted); display: block; margin-top: 0.4rem;">
+              Drag thumbnails to reorder. 1st image = Primary, 2nd image = Hover.
             </span>
           </div>
 
-          <!-- Available Sizes Selector -->
-          <div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-              <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; font-weight: 600;">AVAILABLE SIZES *</label>
-              <span style="font-size: 0.7rem; color: var(--text-muted);">Click to toggle / add sizes</span>
-            </div>
-            
-            <div class="admin-size-selector" id="adminSizeSelector">
-              ${['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'].map(sz => `
-                <button type="button" class="admin-size-pill ${selectedSizes.includes(sz) ? 'active' : ''}" data-size="${sz}">
-                  ${sz}
-                </button>
-              `).join('')}
-              ${selectedSizes.filter(s => !['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'].includes(s)).map(customSz => `
-                <button type="button" class="admin-size-pill active" data-size="${customSz}">
-                  ${customSz}
-                </button>
-              `).join('')}
-            </div>
-
-            <!-- Custom Size Input -->
-            <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
-              <input type="text" id="customSizeInput" class="input-field" placeholder="Custom size (e.g. Free Size, 4XL)" style="font-size: 0.8rem; padding: 0.5rem 0.75rem;" />
-              <button type="button" id="addCustomSizeBtn" class="btn-secondary" style="white-space: nowrap; padding: 0.5rem 1rem; font-size: 0.75rem;">+ ADD SIZE</button>
-            </div>
-          </div>
-
-          <!-- Product Description (Multiline Text Area with AI Trigger) -->
-          <div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-              <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; font-weight: 600;">PRODUCT DESCRIPTION *</label>
-              <button type="button" id="aiGenDescBtn" title="Analyze uploaded photo with AI" style="background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); color: #38bdf8; font-size: 0.7rem; padding: 0.2rem 0.6rem; border-radius: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.3rem;">
-                ✨ Auto-Generate with AI
-              </button>
-            </div>
-            <textarea 
-              id="pDesc" 
-              required 
-              class="input-field" 
-              rows="3" 
-              placeholder="e.g. A comfortable everyday T-shirt made from soft, breathable cotton. Designed with a clean regular fit and classic round neck, making it easy to pair with jeans, trousers, or shorts."
-              style="width: 100%; resize: vertical; line-height: 1.6; font-size: 0.85rem;"
-            >${p.description || ''}</textarea>
-          </div>
-
-          <!-- Product Highlights (Separate Bullet List with Add/Remove and AI Trigger) -->
-          <div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-              <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; font-weight: 600;">PRODUCT HIGHLIGHTS</label>
-              <button type="button" id="aiGenHlBtn" title="Extract 4-6 highlights with AI" style="background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); color: #38bdf8; font-size: 0.7rem; padding: 0.2rem 0.6rem; border-radius: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.3rem;">
-                ✨ Auto-Generate with AI
+          <!-- STEP 2: AI GENERATED PRODUCT INFORMATION -->
+          <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; gap: 1.15rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 0.8rem; font-weight: 700; color: #38bdf8; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.4rem;">
+                <span>✨</span> STEP 2 — AI GENERATED INFORMATION (EDITABLE)
+              </span>
+              <button type="button" id="reAnalyzeBtn" title="Re-run AI analysis on current photo" style="background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); color: #38bdf8; font-size: 0.72rem; padding: 0.3rem 0.7rem; border-radius: 16px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem;">
+                <span>✨ Re-Analyze Image</span>
               </button>
             </div>
 
-            <div id="adminHighlightsContainer" style="display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 0.75rem;">
-              <!-- Dynamic Highlight Input Rows -->
+            <!-- Product Name -->
+            <div>
+              <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem; font-weight: 600;">
+                PRODUCT NAME *
+              </label>
+              <input type="text" id="pName" required class="input-field" value="${p.name || ''}" placeholder="e.g. Vintage Eagle Graphic T-Shirt" style="font-size: 0.95rem; font-weight: 600; width: 100%;" />
             </div>
 
-            <button type="button" id="addHighlightBtn" class="btn-secondary" style="padding: 0.55rem 1.1rem; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.5rem;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-              ADD HIGHLIGHT
-            </button>
+            <!-- Product Description -->
+            <div>
+              <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem; font-weight: 600;">
+                PRODUCT DESCRIPTION *
+              </label>
+              <textarea 
+                id="pDesc" 
+                required 
+                class="input-field" 
+                rows="3" 
+                placeholder="e.g. Vintage Eagle Graphic T-Shirt features a bold eagle graphic on the front..."
+                style="width: 100%; resize: vertical; line-height: 1.6; font-size: 0.85rem;"
+              >${p.description || ''}</textarea>
+            </div>
+
+            <!-- Product Highlights -->
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; font-weight: 600;">
+                  PRODUCT HIGHLIGHTS (4–6 BULLET POINTS)
+                </label>
+                <span style="font-size: 0.7rem; color: var(--text-muted);">Short & easy to scan</span>
+              </div>
+
+              <div id="adminHighlightsContainer" style="display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 0.75rem;">
+                <!-- Dynamic Highlight Input Rows -->
+              </div>
+
+              <button type="button" id="addHighlightBtn" class="btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.4rem;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                ADD HIGHLIGHT
+              </button>
+            </div>
           </div>
 
-          <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding-top: 1.5rem; margin-top: 1rem;">
+          <!-- STEP 3: PRODUCT DETAILS & SPECIFICATIONS -->
+          <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; gap: 1.15rem;">
+            <span style="font-size: 0.8rem; font-weight: 700; color: #a855f7; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.4rem;">
+              <span>🏷️</span> STEP 3 — PRODUCT DETAILS & SPECIFICATIONS
+            </span>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+              <div>
+                <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem; font-weight: 600;">CATEGORY</label>
+                <select id="pCategory" class="sort-select" style="width: 100%;">
+                  <option value="Graphic" ${p.category === 'Graphic' ? 'selected' : ''}>Graphic</option>
+                  <option value="Acid Wash" ${p.category === 'Acid Wash' ? 'selected' : ''}>Acid Wash</option>
+                  <option value="Heavyweight Minimal" ${p.category === 'Heavyweight Minimal' ? 'selected' : ''}>Heavyweight Minimal</option>
+                  <option value="Vintage" ${p.category === 'Vintage' ? 'selected' : ''}>Vintage</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem; font-weight: 600;">PRICE (₹ INR) *</label>
+                <input type="number" step="1" id="pPrice" required class="input-field" value="${p.price || 1299}" />
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+              <div>
+                <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem; font-weight: 600;">STOCK QUANTITY *</label>
+                <input type="number" id="pStockQty" required class="input-field" value="${p.stockQty !== undefined ? p.stockQty : 25}" />
+              </div>
+              <div>
+                <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem; font-weight: 600;">COLOUR / TONE</label>
+                <input type="text" id="pColor" class="input-field" placeholder="e.g. Charcoal Grey" value="${p.color || ''}" />
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+              <div>
+                <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem; font-weight: 600;">PATTERN / DESIGN</label>
+                <input type="text" id="pPattern" class="input-field" placeholder="e.g. Front Graphic Print" value="${p.pattern || ''}" />
+              </div>
+              <div>
+                <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem; font-weight: 600;">FIT</label>
+                <input type="text" id="pFit" class="input-field" placeholder="e.g. Boxy Oversized Fit" value="${p.fit || 'Boxy Oversized Fit'}" />
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+              <div>
+                <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem; font-weight: 600;">NECK TYPE</label>
+                <input type="text" id="pNeckType" class="input-field" placeholder="e.g. Round Neck" value="${p.neckType || 'Round Neck'}" />
+              </div>
+              <div>
+                <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem; font-weight: 600;">SLEEVE TYPE</label>
+                <input type="text" id="pSleeveType" class="input-field" placeholder="e.g. Short Sleeves" value="${p.sleeveType || 'Short Sleeves'}" />
+              </div>
+            </div>
+
+            <!-- Available Sizes Selector -->
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; font-weight: 600;">AVAILABLE SIZES *</label>
+                <span style="font-size: 0.7rem; color: var(--text-muted);">Click to toggle sizes</span>
+              </div>
+              
+              <div class="admin-size-selector" id="adminSizeSelector">
+                ${['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'].map(sz => `
+                  <button type="button" class="admin-size-pill ${selectedSizes.includes(sz) ? 'active' : ''}" data-size="${sz}">
+                    ${sz}
+                  </button>
+                `).join('')}
+                ${selectedSizes.filter(s => !['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'].includes(s)).map(customSz => `
+                  <button type="button" class="admin-size-pill active" data-size="${customSz}">
+                    ${customSz}
+                  </button>
+                `).join('')}
+              </div>
+
+              <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+                <input type="text" id="customSizeInput" class="input-field" placeholder="Custom size (e.g. Free Size, 4XL)" style="font-size: 0.8rem; padding: 0.5rem 0.75rem;" />
+                <button type="button" id="addCustomSizeBtn" class="btn-secondary" style="white-space: nowrap; padding: 0.5rem 1rem; font-size: 0.75rem;">+ ADD SIZE</button>
+              </div>
+            </div>
+
+            <!-- Homepage New Arrival Toggle -->
+            <div style="padding: 0.75rem 1rem; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); display: flex; align-items: center; gap: 0.75rem; border-radius: 8px;">
+              <input type="checkbox" id="pIsNewArrival" ${p.isNewArrival ? 'checked' : ''} style="width: 18px; height: 18px; cursor: pointer;" />
+              <label for="pIsNewArrival" style="color: #fff; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
+                Feature in "New Arrivals" Section on Homepage
+              </label>
+            </div>
+          </div>
+
+          <!-- STEP 4: SAVE PRODUCT -->
+          <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding-top: 1.5rem; margin-top: 0.5rem;">
             <button type="button" class="btn-secondary" id="cancelFormBtn">CANCEL</button>
-            <button type="submit" class="btn-primary">${isEdit ? 'SAVE CHANGES' : 'CREATE PRODUCT'}</button>
+            <button type="submit" class="btn-primary" style="padding: 0.85rem 2rem; font-size: 0.9rem;">
+              ${isEdit ? 'SAVE CHANGES' : 'CREATE PRODUCT'}
+            </button>
           </div>
         </form>
       </div>
@@ -980,8 +1041,8 @@ export class AdminPanel {
         aiStatus.style.border = '1px solid rgba(56, 189, 248, 0.25)';
         aiStatus.innerHTML = `
           <div style="display: flex; align-items: center; gap: 0.65rem; color: #38bdf8;">
-            <div class="spinner" style="width: 15px; height: 15px; border: 2px solid rgba(56, 189, 248, 0.25); border-top-color: #38bdf8; border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0;"></div>
-            <span>✨ <strong>AI Vision:</strong> Analyzing T-shirt image features & generating description + highlights...</span>
+            <div class="spinner" style="width: 16px; height: 16px; border: 2px solid rgba(56, 189, 248, 0.25); border-top-color: #38bdf8; border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0;"></div>
+            <span style="font-weight: 600; font-size: 0.85rem;">Analyzing product...</span>
           </div>
         `;
       }
@@ -991,7 +1052,16 @@ export class AdminPanel {
       if (!aiStatus) return;
 
       if (aiResult.success) {
-        // Auto-populate description
+        // 1. Auto-populate Product Name
+        const nameEl = document.getElementById('pName');
+        if (nameEl) {
+          nameEl.value = aiResult.name;
+          nameEl.style.transition = 'border-color 0.4s ease';
+          nameEl.style.borderColor = '#38bdf8';
+          setTimeout(() => nameEl.style.borderColor = '', 1200);
+        }
+
+        // 2. Auto-populate Description (starts with product name)
         const descEl = document.getElementById('pDesc');
         if (descEl) {
           descEl.value = aiResult.description;
@@ -1000,10 +1070,31 @@ export class AdminPanel {
           setTimeout(() => descEl.style.borderColor = '', 1200);
         }
 
-        // Auto-populate highlights
+        // 3. Auto-populate Highlights (4-6 bullets)
         highlightsList = [...aiResult.highlights];
         if (typeof renderHighlightsGlobal === 'function') {
           renderHighlightsGlobal();
+        }
+
+        // 4. Auto-populate Detected Attributes
+        if (aiResult.attributes) {
+          const catEl = document.getElementById('pCategory');
+          if (catEl && aiResult.attributes.category) catEl.value = aiResult.attributes.category;
+
+          const colorEl = document.getElementById('pColor');
+          if (colorEl && aiResult.attributes.color) colorEl.value = aiResult.attributes.color;
+
+          const patEl = document.getElementById('pPattern');
+          if (patEl && aiResult.attributes.pattern) patEl.value = aiResult.attributes.pattern;
+
+          const fitEl = document.getElementById('pFit');
+          if (fitEl && aiResult.attributes.fit) fitEl.value = aiResult.attributes.fit;
+
+          const neckEl = document.getElementById('pNeckType');
+          if (neckEl && aiResult.attributes.neckType) neckEl.value = aiResult.attributes.neckType;
+
+          const sleeveEl = document.getElementById('pSleeveType');
+          if (sleeveEl && aiResult.attributes.sleeveType) sleeveEl.value = aiResult.attributes.sleeveType;
         }
 
         aiStatus.style.background = 'rgba(16, 185, 129, 0.08)';
@@ -1012,12 +1103,12 @@ export class AdminPanel {
           <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; color: #10b981;">
             <div style="display: flex; align-items: center; gap: 0.5rem;">
               <span>✨</span>
-              <span><strong>AI Analysis Complete:</strong> Generated Description & ${aiResult.highlights.length} Highlights based on image. You can edit them below!</span>
+              <span><strong>AI Analysis Complete:</strong> Generated Name ("${aiResult.name}"), Description, ${aiResult.highlights.length} Highlights & Specs. You can edit any field before saving.</span>
             </div>
             <button type="button" style="background: none; border: none; color: #10b981; cursor: pointer; font-size: 1.2rem; line-height: 1; padding: 0 0.3rem;" onclick="this.closest('#aiStatusContainer').style.display='none'">&times;</button>
           </div>
         `;
-        store.showToast("✨ AI generated description & highlights from uploaded image!");
+        store.showToast(`✨ Generated "${aiResult.name}" details from image!`);
       } else {
         aiStatus.style.background = 'rgba(239, 68, 68, 0.08)';
         aiStatus.style.border = '1px solid rgba(239, 68, 68, 0.25)';
@@ -1025,7 +1116,7 @@ export class AdminPanel {
           <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; color: #ef4444;">
             <div style="display: flex; align-items: center; gap: 0.5rem;">
               <span>⚠️</span>
-              <span>${aiResult.error || 'Could not analyze image'}. You can enter description & highlights manually.</span>
+              <span>${aiResult.error || 'Could not analyze image'}. You can enter details manually.</span>
             </div>
             <button type="button" style="background: none; border: none; color: #ef4444; cursor: pointer; font-size: 1.2rem; line-height: 1; padding: 0 0.3rem;" onclick="this.closest('#aiStatusContainer').style.display='none'">&times;</button>
           </div>
@@ -1083,7 +1174,7 @@ export class AdminPanel {
         });
       }
 
-      // Automatically analyze first uploaded image with AI
+      // Automatically trigger fast AI analysis on the uploaded T-shirt image
       if (firstValidFile) {
         triggerAIAnalysis(firstValidFile);
       }
@@ -1193,7 +1284,7 @@ export class AdminPanel {
               type="text" 
               class="input-field highlight-input" 
               value="${hl.replace(/"/g, '&quot;')}" 
-              placeholder="e.g. 100% Cotton, Regular Fit, Machine Washable" 
+              placeholder="e.g. Graphic front print, Short sleeves" 
               style="flex: 1; font-size: 0.82rem; padding: 0.55rem 0.8rem;" 
             />
             <button 
@@ -1242,17 +1333,8 @@ export class AdminPanel {
       renderHighlights();
     };
 
-    // Connect manual AI trigger buttons
-    document.getElementById('aiGenDescBtn')?.addEventListener('click', () => {
-      const primaryImg = uploadedImages.find(img => !img.error && img.url);
-      if (primaryImg) {
-        triggerAIAnalysis(primaryImg.file || primaryImg.url);
-      } else {
-        store.showToast("Please upload a product photo first to analyze with AI.", 'error');
-      }
-    });
-
-    document.getElementById('aiGenHlBtn')?.addEventListener('click', () => {
+    // Connect Re-Analyze AI trigger button
+    document.getElementById('reAnalyzeBtn')?.addEventListener('click', () => {
       const primaryImg = uploadedImages.find(img => !img.error && img.url);
       if (primaryImg) {
         triggerAIAnalysis(primaryImg.file || primaryImg.url);
@@ -1301,7 +1383,7 @@ export class AdminPanel {
         .filter(val => val.length > 0);
 
       const formData = {
-        name: document.getElementById('pName').value,
+        name: document.getElementById('pName').value.trim(),
         category: document.getElementById('pCategory').value,
         price: parseFloat(document.getElementById('pPrice').value),
         stockQty: parseInt(document.getElementById('pStockQty').value),
@@ -1311,9 +1393,13 @@ export class AdminPanel {
         images: parsedImgs,
         description: document.getElementById('pDesc').value.trim(),
         highlights: finalHighlights,
+        color: document.getElementById('pColor')?.value.trim() || '',
+        pattern: document.getElementById('pPattern')?.value.trim() || '',
+        fit: document.getElementById('pFit')?.value.trim() || 'Boxy Oversized Fit',
+        neckType: document.getElementById('pNeckType')?.value.trim() || 'Round Neck',
+        sleeveType: document.getElementById('pSleeveType')?.value.trim() || 'Short Sleeves',
         inStock: parseInt(document.getElementById('pStockQty').value) > 0,
         badge: isEdit ? p.badge : 'NEW',
-        fit: p.fit || 'Boxy Fit',
         sizes: selectedSizes
       };
 

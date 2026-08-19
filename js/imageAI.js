@@ -1,43 +1,40 @@
-// TEE MATRIX - AI Product Vision Analyzer
-// Analyzes uploaded T-shirt images and generates accurate descriptions & highlights
+// TEE MATRIX - Intelligent AI Product Vision Analyzer
+// Fast, accurate image analysis for automated T-shirt naming, descriptions, highlights, and attributes
 
 export class ProductImageAI {
   /**
-   * Analyzes an uploaded product image (File, Blob, or URL) and returns description and highlights.
+   * Analyzes an uploaded product image (File, Blob, or URL) and returns complete product data.
    * @param {File|Blob|string} imageSource - File object, Blob, or URL
-   * @returns {Promise<{success: boolean, description: string, highlights: string[], visualInfo: object}>}
+   * @returns {Promise<{success: boolean, name: string, description: string, highlights: string[], attributes: object}>}
    */
   static async analyzeImage(imageSource) {
     try {
-      // 1. Load image into an HTML Image element
+      const fileName = (imageSource instanceof File) ? imageSource.name : (typeof imageSource === 'string' ? imageSource : '');
       const img = await this.loadImage(imageSource);
-      
-      // 2. Perform canvas-based visual feature extraction
-      const visualFeatures = this.extractVisualFeatures(img);
+      const features = this.extractVisualFeatures(img, fileName);
+      const generated = this.generateProductInfo(features);
 
-      // 3. Synthesize professional product description and highlights
-      const result = this.generateContentFromFeatures(visualFeatures);
-      
       return {
         success: true,
-        description: result.description,
-        highlights: result.highlights,
-        visualInfo: visualFeatures
+        name: generated.name,
+        description: generated.description,
+        highlights: generated.highlights,
+        attributes: generated.attributes,
+        visualInfo: features
       };
     } catch (err) {
       console.error('Image AI analysis failed:', err);
       return {
         success: false,
-        error: err.message || 'Failed to analyze image',
+        error: err.message || 'Unable to analyze image',
+        name: '',
         description: '',
-        highlights: []
+        highlights: [],
+        attributes: {}
       };
     }
   }
 
-  /**
-   * Helper to load File, Blob, or URL into an HTMLImageElement
-   */
   static loadImage(source) {
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -65,13 +62,12 @@ export class ProductImageAI {
   }
 
   /**
-   * Extracts dominant color, brightness, center-contrast, texture noise, and graphic presence
+   * Performs deep canvas pixel feature extraction across garment regions
    */
-  static extractVisualFeatures(img) {
+  static extractVisualFeatures(img, fileName = '') {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     
-    // Scale to standard analysis dimensions
     const width = 120;
     const height = 150;
     canvas.width = width;
@@ -84,7 +80,6 @@ export class ProductImageAI {
     let totalR = 0, totalG = 0, totalB = 0;
     let pixelCount = 0;
 
-    // Region histograms and sample pixels
     const centerPixels = [];
     const outerPixels = [];
     let highContrastCount = 0;
@@ -92,8 +87,8 @@ export class ProductImageAI {
 
     const centerXStart = Math.floor(width * 0.25);
     const centerXEnd = Math.floor(width * 0.75);
-    const centerYStart = Math.floor(height * 0.25);
-    const centerYEnd = Math.floor(height * 0.75);
+    const centerYStart = Math.floor(height * 0.22);
+    const centerYEnd = Math.floor(height * 0.78);
 
     for (let y = 0; y < height; y += 2) {
       for (let x = 0; x < width; x += 2) {
@@ -103,7 +98,7 @@ export class ProductImageAI {
         const b = data[idx + 2];
         const a = data[idx + 3];
 
-        if (a < 128) continue; // Skip transparency
+        if (a < 128) continue; // Skip transparency/background
 
         totalR += r;
         totalG += g;
@@ -119,7 +114,6 @@ export class ProductImageAI {
           outerPixels.push({ r, g, b, brightness });
         }
 
-        // Compare neighbor for edge/contrast detection
         if (x + 2 < width) {
           const nextIdx = (y * width + (x + 2)) * 4;
           const nextBrightness = 0.299 * data[nextIdx] + 0.587 * data[nextIdx + 1] + 0.114 * data[nextIdx + 2];
@@ -135,7 +129,6 @@ export class ProductImageAI {
     const avgB = pixelCount > 0 ? Math.round(totalB / pixelCount) : 128;
     const avgBrightness = 0.299 * avgR + 0.587 * avgG + 0.114 * avgB;
 
-    // Detect Center vs Outer contrast difference (signals graphic print or chest logo)
     let centerAvgBrightness = avgBrightness;
     let centerVariance = 0;
     if (centerPixels.length > 0) {
@@ -152,55 +145,66 @@ export class ProductImageAI {
       outerVariance = outerPixels.reduce((acc, p) => acc + Math.pow(p.brightness - outerAvgBrightness, 2), 0) / outerPixels.length;
     }
 
-    const hasChestGraphic = (centerVariance > outerVariance * 1.35 && highContrastCount > 120) || (Math.abs(centerAvgBrightness - outerAvgBrightness) > 25);
-    const isAcidWashOrDistressed = colorVariations > 400 && highContrastCount > 200 && !hasChestGraphic;
+    // Keyword detection from file/source name
+    const lowerName = fileName.toLowerCase();
+    const graphicKeywords = [
+      { key: 'skull', name: 'Skull Graphic' },
+      { key: 'eagle', name: 'Vintage Eagle Graphic' },
+      { key: 'dragon', name: 'Dragon Graphic' },
+      { key: 'luffy', name: 'Anime Character Graphic' },
+      { key: 'anime', name: 'Anime Graphic' },
+      { key: 'cyber', name: 'Cybernetic Graphic' },
+      { key: 'matrix', name: 'Neo Matrix Graphic' },
+      { key: 'racing', name: 'Retro Racing Print' },
+      { key: 'tiger', name: 'Tiger Graphic' },
+      { key: 'typography', name: 'Urban Typography Print' },
+      { key: 'rebellion', name: 'Distortion Rebellion Graphic' },
+      { key: 'tokyo', name: 'Tokyo Streetwear Graphic' },
+      { key: 'vintage', name: 'Vintage Heritage Print' }
+    ];
 
-    // Categorize garment base color
+    let detectedGraphicType = null;
+    for (const gk of graphicKeywords) {
+      if (lowerName.includes(gk.key)) {
+        detectedGraphicType = gk.name;
+        break;
+      }
+    }
+
+    const hasChestGraphic = Boolean(detectedGraphicType) || (centerVariance > outerVariance * 1.3 && highContrastCount > 110) || (Math.abs(centerAvgBrightness - outerAvgBrightness) > 22);
+    const isAcidWash = lowerName.includes('acid') || (colorVariations > 380 && highContrastCount > 180 && !hasChestGraphic);
+    const isStriped = lowerName.includes('stripe') || lowerName.includes('lined');
+
     const colorInfo = this.classifyGarmentColor(avgR, avgG, avgB, avgBrightness);
 
     return {
       color: colorInfo.name,
       colorFamily: colorInfo.family,
       hasGraphic: hasChestGraphic,
-      isAcidWash: isAcidWashOrDistressed,
-      brightness: avgBrightness,
-      aspectRatio: img.width / img.height
+      graphicTheme: detectedGraphicType || 'Graphic',
+      isAcidWash: isAcidWash,
+      isStriped: isStriped,
+      brightness: avgBrightness
     };
   }
 
-  /**
-   * Color classification based on RGB and HSL metrics
-   */
   static classifyGarmentColor(r, g, b, brightness) {
     const max = Math.max(r, g, b);
     const min = Math.min(r, g, b);
     const d = max - min;
     const s = max === 0 ? 0 : d / max;
 
-    // Black / Dark tones
-    if (brightness < 42) {
-      return { name: 'Black', family: 'dark' };
-    }
-    if (brightness < 75 && s < 0.2) {
-      return { name: 'Charcoal Grey', family: 'dark' };
-    }
+    if (brightness < 42) return { name: 'Black', family: 'dark' };
+    if (brightness < 78 && s < 0.22) return { name: 'Charcoal Grey', family: 'dark' };
+    if (brightness > 208 && s < 0.12) return { name: 'White', family: 'light' };
+    if (brightness > 180 && s < 0.25) return { name: 'Off-White', family: 'light' };
 
-    // White / Light tones
-    if (brightness > 205 && s < 0.12) {
-      return { name: 'White', family: 'light' };
-    }
-    if (brightness > 180 && s < 0.25) {
-      return { name: 'Off-White', family: 'light' };
-    }
-
-    // Greys
     if (s < 0.18) {
       if (brightness < 120) return { name: 'Dark Grey', family: 'dark' };
       if (brightness < 170) return { name: 'Heather Grey', family: 'neutral' };
       return { name: 'Light Grey', family: 'light' };
     }
 
-    // Chromatic Colors
     let h = 0;
     if (max !== min) {
       switch (max) {
@@ -214,8 +218,8 @@ export class ProductImageAI {
     const deg = h * 360;
 
     if (deg >= 345 || deg < 15) return { name: 'Red', family: 'vibrant' };
-    if (deg >= 15 && deg < 45) return { name: 'Brown / Earth Tan', family: 'earth' };
-    if (deg >= 45 && deg < 70) return { name: 'Beige / Sand', family: 'light' };
+    if (deg >= 15 && deg < 45) return { name: 'Brown', family: 'earth' };
+    if (deg >= 45 && deg < 70) return { name: 'Beige', family: 'light' };
     if (deg >= 70 && deg < 165) return { name: 'Olive Green', family: 'earth' };
     if (deg >= 165 && deg < 260) return { name: 'Navy Blue', family: 'dark' };
     if (deg >= 260 && deg < 315) return { name: 'Purple', family: 'vibrant' };
@@ -223,54 +227,79 @@ export class ProductImageAI {
   }
 
   /**
-   * Generates natural description and 4-6 concise highlights
+   * Generates product name, description, highlights, and attributes strictly based on priority hierarchy
    */
-  static generateContentFromFeatures(features) {
-    const color = features.color;
-    const hasGraphic = features.hasGraphic;
-    const isAcidWash = features.isAcidWash;
-
+  static generateProductInfo(f) {
+    let name = '';
     let description = '';
     let highlights = [];
+    let category = 'Graphic';
+    let pattern = 'Front Graphic Print';
 
-    if (hasGraphic) {
-      // Graphic Print T-Shirt
-      if (features.colorFamily === 'dark') {
-        description = `This ${color.toLowerCase()} T-shirt features a clean graphic print on the front with a relaxed casual design. Its simple styling makes it suitable for everyday casual wear.`;
+    // 1. Printed / Graphic T-Shirt
+    if (f.hasGraphic) {
+      category = 'Graphic';
+      pattern = String(f.graphicTheme) + ' Print';
+      const themeLabel = f.graphicTheme === 'Graphic' ? 'Graphic Print' : f.graphicTheme;
+      
+      if (f.colorFamily === 'dark') {
+        name = f.color + ' ' + themeLabel + ' T-Shirt';
+        description = name + ' features a bold graphic artwork on the front, creating a distinctive streetwear-inspired look. The ' + f.color.toLowerCase() + ' colour and graphic design give it a versatile casual style that is easy to pair with jeans, cargos, or shorts.';
       } else {
-        description = `This ${color.toLowerCase()} T-shirt is designed with a prominent front graphic and clean silhouette, making it an easy piece to pair with everyday outfits.`;
+        name = f.color + ' ' + themeLabel + ' T-Shirt';
+        description = name + ' features a prominent graphic artwork across the chest with a clean silhouette. Its clean ' + f.color.toLowerCase() + ' backdrop provides an eye-catching contrast, suitable for effortless everyday casual wear.';
       }
 
       highlights = [
-        `${color} color`,
+        f.color + ' colour',
         'Graphic front print',
         'Short sleeves',
         'Round neck',
-        'Casual design',
-        'Everyday wear'
+        'Streetwear-inspired design',
+        'Casual everyday wear'
       ];
-    } else if (isAcidWash) {
-      // Acid Wash / Textured T-Shirt
-      description = `This ${color.toLowerCase()} T-shirt features a distinct vintage-washed surface pattern with a relaxed casual cut, offering a unique textured look for daily styling.`;
+    }
+    // 2. Acid Wash T-Shirt
+    else if (f.isAcidWash) {
+      category = 'Acid Wash';
+      pattern = 'Vintage Acid Wash Pattern';
+      name = f.color + ' Acid Wash T-Shirt';
+      description = name + ' features a distinct acid-wash texture with a relaxed casual silhouette. The textured vintage pattern gives it a raw streetwear aesthetic, making it an easy piece to pair with everyday casuals.';
 
       highlights = [
-        `${color} tone`,
-        'Vintage wash textured pattern',
+        f.color + ' acid wash finish',
+        'Textured vintage wash pattern',
         'Short sleeves',
         'Round neck',
-        'Casual streetwear style',
+        'Relaxed casual design',
         'Everyday wear'
       ];
-    } else {
-      // Solid / Minimalist T-Shirt
-      if (features.colorFamily === 'light') {
-        description = `This clean ${color.toLowerCase()} T-shirt features a solid minimalist design with a classic round neck and short sleeves, suitable for versatile everyday styling.`;
-      } else {
-        description = `This classic ${color.toLowerCase()} T-shirt features a clean solid colorway and relaxed casual cut, making it easy to pair with jeans, trousers, or shorts.`;
-      }
+    }
+    // 3. Striped / Lined T-Shirt
+    else if (f.isStriped) {
+      category = 'Vintage';
+      pattern = 'Striped Pattern';
+      name = f.color + ' Striped T-Shirt';
+      description = name + ' features a classic striped pattern across the torso, offering a timeless casual style. The clean neckline and short sleeves make it suitable for daily wear.';
 
       highlights = [
-        `${color} color`,
+        f.color + ' striped design',
+        'Horizontal stripe pattern',
+        'Short sleeves',
+        'Round neck',
+        'Casual style',
+        'Everyday wear'
+      ];
+    }
+    // 4. Plain / Minimalist T-Shirt
+    else {
+      category = 'Heavyweight Minimal';
+      pattern = 'Solid Plain Minimal';
+      name = 'Classic ' + f.color + ' T-Shirt';
+      description = name + ' features a clean solid colourway with a classic round neck and short sleeves. Its simple minimalist styling makes it easy to pair with jeans, trousers, or shorts for everyday casual wear.';
+
+      highlights = [
+        f.color + ' colour',
         'Solid plain design',
         'Short sleeves',
         'Round neck',
@@ -279,9 +308,20 @@ export class ProductImageAI {
       ];
     }
 
+    const attributes = {
+      category: category,
+      color: f.color,
+      pattern: pattern,
+      neckType: 'Round Neck',
+      sleeveType: 'Short Sleeves',
+      fit: 'Boxy Oversized Fit'
+    };
+
     return {
+      name,
       description,
-      highlights
+      highlights,
+      attributes
     };
   }
 }

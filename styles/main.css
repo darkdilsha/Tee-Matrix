@@ -1512,4 +1512,16 @@ button {
   color: var(--text-secondary);
 }
 
+/* Fast Product Creator UI */
+.admin-upload-zone:hover {
+  border-color: var(--accent-gold) !important;
+  background: rgba(245, 158, 11, 0.04) !important;
+}
+
+#reAnalyzeBtn:hover {
+  background: rgba(56, 189, 248, 0.2) !important;
+  border-color: #38bdf8 !important;
+}
+
+
 
