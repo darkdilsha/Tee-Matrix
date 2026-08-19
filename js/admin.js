@@ -677,8 +677,20 @@ export class AdminPanel {
       : (typeof p.sizes === 'string' ? JSON.parse(p.sizes) : ['S', 'M', 'L', 'XL']);
     if (!selectedSizes || selectedSizes.length === 0) selectedSizes = ['S', 'M', 'L', 'XL'];
 
+    // State to store product highlights
+    let highlightsList = Array.isArray(p.highlights) && p.highlights.length > 0
+      ? [...p.highlights]
+      : (isEdit ? [] : [
+          "100% Cotton",
+          "Regular Fit",
+          "Soft & Breathable",
+          "Round Neck",
+          "Half Sleeve",
+          "Machine Washable"
+        ]);
+
     modal.innerHTML = `
-      <div class="modal-content glass-panel" style="max-width: 700px; padding: 2.5rem;">
+      <div class="modal-content glass-panel" style="max-width: 720px; padding: 2.5rem; max-height: 90vh; overflow-y: auto;">
         <button class="modal-close" id="closeFormBtn">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -692,13 +704,13 @@ export class AdminPanel {
 
         <form id="productSaveForm" style="display: flex; flex-direction: column; gap: 1.25rem;">
           <div>
-            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem;">PRODUCT TITLE *</label>
+            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem; font-weight: 600;">PRODUCT TITLE *</label>
             <input type="text" id="pName" required class="input-field" value="${p.name}" placeholder="e.g. Matrix Acid Wash Heavyweight Tee" />
           </div>
 
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
             <div>
-              <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem;">CATEGORY</label>
+              <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem; font-weight: 600;">CATEGORY</label>
               <select id="pCategory" class="sort-select" style="width: 100%;">
                 <option value="Acid Wash" ${p.category === 'Acid Wash' ? 'selected' : ''}>Acid Wash</option>
                 <option value="Graphic" ${p.category === 'Graphic' ? 'selected' : ''}>Graphic</option>
@@ -707,18 +719,18 @@ export class AdminPanel {
               </select>
             </div>
             <div>
-              <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem;">PRICE (₹ INR) *</label>
+              <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem; font-weight: 600;">PRICE (₹ INR) *</label>
               <input type="number" step="1" id="pPrice" required class="input-field" value="${p.price}" />
             </div>
           </div>
 
           <div>
-            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem;">STOCK QUANTITY</label>
+            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem; font-weight: 600;">STOCK QUANTITY</label>
             <input type="number" id="pStockQty" required class="input-field" value="${p.stockQty}" />
           </div>
 
           <!-- New Arrival Option -->
-          <div style="padding: 0.8rem 1rem; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); display: flex; align-items: center; gap: 0.75rem;">
+          <div style="padding: 0.8rem 1rem; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); display: flex; align-items: center; gap: 0.75rem; border-radius: 8px;">
             <input type="checkbox" id="pIsNewArrival" ${p.isNewArrival ? 'checked' : ''} style="width: 18px; height: 18px; cursor: pointer;" />
             <label for="pIsNewArrival" style="color: #fff; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
               Add to "New Arrivals" Section on Homepage Landing Page
@@ -727,7 +739,7 @@ export class AdminPanel {
 
           <!-- Drag & Drop Image Upload Zone -->
           <div>
-            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem;">PRODUCT GALLERY IMAGES *</label>
+            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem; font-weight: 600;">PRODUCT GALLERY IMAGES *</label>
             
             <div id="adminUploadZone" class="admin-upload-zone">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -752,7 +764,7 @@ export class AdminPanel {
           <!-- Available Sizes Selector -->
           <div>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-              <label style="font-size: 0.75rem; color: var(--text-secondary); display: block;">AVAILABLE SIZES *</label>
+              <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; font-weight: 600;">AVAILABLE SIZES *</label>
               <span style="font-size: 0.7rem; color: var(--text-muted);">Click to toggle / add sizes</span>
             </div>
             
@@ -776,9 +788,37 @@ export class AdminPanel {
             </div>
           </div>
 
+          <!-- Product Description (Multiline Text Area) -->
           <div>
-            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem;">DESCRIPTION</label>
-            <textarea id="pDesc" class="input-field" rows="3">${p.description}</textarea>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+              <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; font-weight: 600;">PRODUCT DESCRIPTION *</label>
+              <span style="font-size: 0.7rem; color: var(--text-muted);">Detailed overview</span>
+            </div>
+            <textarea 
+              id="pDesc" 
+              required 
+              class="input-field" 
+              rows="3" 
+              placeholder="e.g. A comfortable everyday T-shirt made from soft, breathable cotton. Designed with a clean regular fit and classic round neck, making it easy to pair with jeans, trousers, or shorts."
+              style="width: 100%; resize: vertical; line-height: 1.6; font-size: 0.85rem;"
+            >${p.description || ''}</textarea>
+          </div>
+
+          <!-- Product Highlights (Separate Bullet List with Add/Remove) -->
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+              <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; font-weight: 600;">PRODUCT HIGHLIGHTS</label>
+              <span style="font-size: 0.7rem; color: var(--text-muted);">Key bullet-point specifications</span>
+            </div>
+
+            <div id="adminHighlightsContainer" style="display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 0.75rem;">
+              <!-- Dynamic Highlight Input Rows -->
+            </div>
+
+            <button type="button" id="addHighlightBtn" class="btn-secondary" style="padding: 0.55rem 1.1rem; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.5rem;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              ADD HIGHLIGHT
+            </button>
           </div>
 
           <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding-top: 1.5rem; margin-top: 1rem;">
@@ -1041,10 +1081,88 @@ export class AdminPanel {
       }
     };
 
+    const setupHighlightsEvents = () => {
+      const container = document.getElementById('adminHighlightsContainer');
+      const addBtn = document.getElementById('addHighlightBtn');
+
+      const syncValues = () => {
+        if (!container) return;
+        const inputs = container.querySelectorAll('.highlight-input');
+        if (inputs.length > 0) {
+          highlightsList = Array.from(inputs).map(inp => inp.value);
+        }
+      };
+
+      const renderHighlights = () => {
+        if (!container) return;
+        if (highlightsList.length === 0) {
+          container.innerHTML = `
+            <div style="font-size: 0.78rem; color: var(--text-muted); padding: 0.75rem 1rem; background: rgba(255,255,255,0.02); border: 1px dashed var(--border-color); border-radius: 8px; text-align: center;">
+              No highlights added yet. Click <strong>"+ ADD HIGHLIGHT"</strong> to create bullet points.
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = highlightsList.map((hl, idx) => `
+          <div class="admin-highlight-row" style="display: flex; gap: 0.5rem; align-items: center;" data-index="${idx}">
+            <span style="color: var(--accent-gold); font-size: 1.1rem; line-height: 1; user-select: none;">&bull;</span>
+            <input 
+              type="text" 
+              class="input-field highlight-input" 
+              value="${hl.replace(/"/g, '&quot;')}" 
+              placeholder="e.g. 100% Cotton, Regular Fit, Machine Washable" 
+              style="flex: 1; font-size: 0.82rem; padding: 0.55rem 0.8rem;" 
+            />
+            <button 
+              type="button" 
+              class="btn-secondary remove-highlight-btn" 
+              data-index="${idx}" 
+              title="Remove highlight" 
+              style="padding: 0.55rem 0.75rem; color: var(--accent-danger, #ef4444); border-color: rgba(239,68,68,0.3); display: flex; align-items: center; justify-content: center; cursor: pointer;"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          </div>
+        `).join('');
+
+        // Wire remove buttons
+        container.querySelectorAll('.remove-highlight-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            syncValues();
+            const removeIdx = parseInt(btn.getAttribute('data-index'));
+            highlightsList.splice(removeIdx, 1);
+            renderHighlights();
+          });
+        });
+
+        // Wire inputs on change
+        container.querySelectorAll('.highlight-input').forEach((inp, i) => {
+          inp.addEventListener('input', (e) => {
+            highlightsList[i] = e.target.value;
+          });
+        });
+      };
+
+      // Add highlight button
+      addBtn?.addEventListener('click', () => {
+        syncValues();
+        highlightsList.push('');
+        renderHighlights();
+        const inputs = container.querySelectorAll('.highlight-input');
+        if (inputs.length > 0) {
+          inputs[inputs.length - 1].focus();
+        }
+      });
+
+      renderHighlights();
+    };
+
     // Initial render and setup
     renderThumbnails();
     setupUploadEvents();
     setupSizeEvents();
+    setupHighlightsEvents();
 
     setTimeout(() => modal.classList.add('active'), 10);
 
@@ -1073,6 +1191,12 @@ export class AdminPanel {
         return;
       }
 
+      // Collect highlights from inputs
+      const highlightInputs = document.querySelectorAll('#adminHighlightsContainer .highlight-input');
+      const finalHighlights = Array.from(highlightInputs)
+        .map(input => input.value.trim())
+        .filter(val => val.length > 0);
+
       const formData = {
         name: document.getElementById('pName').value,
         category: document.getElementById('pCategory').value,
@@ -1082,7 +1206,8 @@ export class AdminPanel {
         imagePrimary: parsedImgs[0] || 'assets/tee_acid_wash.jpg',
         imageHover: parsedImgs[1] || parsedImgs[0] || 'assets/tee_acid_wash_hover.jpg',
         images: parsedImgs,
-        description: document.getElementById('pDesc').value,
+        description: document.getElementById('pDesc').value.trim(),
+        highlights: finalHighlights,
         inStock: parseInt(document.getElementById('pStockQty').value) > 0,
         badge: isEdit ? p.badge : 'NEW',
         fit: p.fit || 'Boxy Fit',

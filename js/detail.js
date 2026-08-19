@@ -109,9 +109,31 @@ export class ProductDetailModal {
                 <span>Delivered in 4-6 business days with express doorstep tracking</span>
               </div>
 
-              <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6; margin-bottom: 1.5rem;">
-                ${product.description}
-              </p>
+              <!-- Product Description -->
+              <div style="margin-bottom: 1.25rem;">
+                <p style="color: var(--text-secondary); font-size: 0.88rem; line-height: 1.65; margin: 0;">
+                  ${product.description}
+                </p>
+              </div>
+
+              <!-- Product Highlights -->
+              ${product.highlights && product.highlights.length > 0 ? `
+                <div style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 10px;">
+                  <span style="display: block; font-size: 0.75rem; font-weight: 700; color: #fff; letter-spacing: 0.08em; margin-bottom: 0.75rem; text-transform: uppercase;">
+                    PRODUCT HIGHLIGHTS
+                  </span>
+                  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.5rem 1rem;">
+                    ${product.highlights.map(h => `
+                      <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--text-secondary);">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent-gold, #f59e0b)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;">
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        <span>${h}</span>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+              ` : ''}
 
               <!-- Size Selector -->
               <div style="margin-bottom: 1.25rem;">

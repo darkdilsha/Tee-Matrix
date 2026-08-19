@@ -1479,3 +1479,37 @@ button {
   box-shadow: 0 2px 8px rgba(255, 255, 255, 0.2);
 }
 
+/* Admin Product Highlights */
+.admin-highlight-row {
+  transition: all 0.2s ease;
+}
+
+.admin-highlight-row:hover .highlight-input {
+  border-color: var(--border-hover);
+}
+
+.admin-highlight-row .remove-highlight-btn {
+  transition: all 0.2s ease;
+}
+
+.admin-highlight-row .remove-highlight-btn:hover {
+  background: rgba(239, 68, 68, 0.15) !important;
+  border-color: rgba(239, 68, 68, 0.6) !important;
+}
+
+/* Product Detail Highlights */
+.detail-highlights-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.5rem 1rem;
+}
+
+.detail-highlight-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+

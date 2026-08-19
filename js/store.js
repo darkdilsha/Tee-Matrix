@@ -9,6 +9,14 @@ const INITIAL_PRODUCTS = [
     fit: "Boxy Oversized Fit",
     fabric: "100% Combed Heavy Cotton",
     description: "Architectural silhouette engineered from vintage acid-washed cotton. Drop-shoulder construction with subtle back graphic detailing.",
+    highlights: [
+      "100% Combed Heavy Cotton",
+      "Boxy Oversized Streetwear Fit",
+      "Vintage Acid Garment Wash",
+      "Drop-Shoulder Construction",
+      "Double-Stitched Reinforced Hem",
+      "Machine Washable"
+    ],
     sizes: ["S", "M", "L", "XL"],
     colors: ["Charcoal", "Jet Black"],
     imagePrimary: "assets/tee_acid_wash.jpg",
@@ -33,6 +41,14 @@ const INITIAL_PRODUCTS = [
     fit: "Relaxed Boxy Cut",
     fabric: "100% Organic Bio-Washed Cotton",
     description: "Minimalist dystopian typography printed on heavy off-white combed cotton. Double-stitched raw hem with ribbed collar.",
+    highlights: [
+      "100% Organic Bio-Washed Cotton",
+      "Relaxed Boxy Cut",
+      "High-Density Screenprint Detailing",
+      "Ribbed Crew Neckline",
+      "Soft & Breathable Texture",
+      "Machine Washable"
+    ],
     sizes: ["XS", "S", "M", "L", "XL"],
     colors: ["Off-White", "Bone White"],
     imagePrimary: "assets/tee_cyberpunk.jpg",
@@ -57,6 +73,14 @@ const INITIAL_PRODUCTS = [
     fit: "Oversized Fit",
     fabric: "100% Premium Heavy Cotton",
     description: "Pure jet-black minimal essential. Premium heavy drape that retains shape after every wash. Clean neck tape and reinforced side seams.",
+    highlights: [
+      "100% Premium Heavy Cotton",
+      "Architectural Oversized Fit",
+      "Deep Jet Black Fade-Resistant Dye",
+      "Reinforced Neck Taping",
+      "Retains Shape After Wash",
+      "Machine Washable"
+    ],
     sizes: ["S", "M", "L", "XL", "XXL"],
     colors: ["Jet Black"],
     imagePrimary: "assets/tee_black_heavy.jpg",
@@ -81,6 +105,14 @@ const INITIAL_PRODUCTS = [
     fit: "Drop Shoulder Fit",
     fabric: "100% Vintage Washed Cotton",
     description: "Architectural off-white oversized silhouette inspired by brutalist urban design. Ultra-soft touch with structured collar.",
+    highlights: [
+      "100% Vintage Washed Cotton",
+      "Drop Shoulder Silhouette",
+      "Brutalist Atelier Aesthetic",
+      "Ultra-Soft Handfeel",
+      "Comfort Round Collar",
+      "Machine Washable"
+    ],
     sizes: ["S", "M", "L", "XL"],
     colors: ["Off-White", "Cream"],
     imagePrimary: "assets/tee_model_white.jpg",
@@ -105,6 +137,14 @@ const INITIAL_PRODUCTS = [
     fit: "Boxy Oversized",
     fabric: "100% Heavyweight Cotton",
     description: "Custom acid garment wash with distortion series screen print. Each piece has a unique vintage pattern.",
+    highlights: [
+      "100% Heavyweight Cotton",
+      "Custom Hand Acid Garment Wash",
+      "Unique Vintage Distress Pattern",
+      "Boxy Streetwear Fit",
+      "Half Sleeve Construction",
+      "Machine Washable"
+    ],
     sizes: ["M", "L", "XL"],
     colors: ["Charcoal Acid"],
     imagePrimary: "assets/tee_acid_wash_hover.jpg",
@@ -129,6 +169,14 @@ const INITIAL_PRODUCTS = [
     fit: "Relaxed Boxy",
     fabric: "100% Heavy Cotton",
     description: "Deep midnight black silhouette with clean minimalist aesthetics. Tailored for online fashion collectors.",
+    highlights: [
+      "100% Heavy Cotton",
+      "Relaxed Boxy Atelier Cut",
+      "Anti-Fading Midnight Black Dye",
+      "Ribbed Round Neck",
+      "Breathable All-Day Comfort",
+      "Machine Washable"
+    ],
     sizes: ["S", "M", "L", "XL"],
     colors: ["Midnight Black"],
     imagePrimary: "assets/story_campaign.jpg",
@@ -202,13 +250,36 @@ class StoreService {
           try { images = JSON.parse(p.images); } catch (_) { images = p.images.split(',').map(s => s.trim()).filter(Boolean); }
         }
 
+        let highlights = [];
+        if (Array.isArray(p.highlights) && p.highlights.length > 0) {
+          highlights = p.highlights;
+        } else if (typeof p.highlights === 'string') {
+          try { 
+            highlights = JSON.parse(p.highlights); 
+          } catch (_) { 
+            highlights = p.highlights.split('\n').map(s => s.trim().replace(/^[-*•]\s*/, '')).filter(Boolean); 
+          }
+        }
+        if (!Array.isArray(highlights) || highlights.length === 0) {
+          highlights = [
+            p.fabric || "100% Premium Cotton",
+            p.fit || "Regular Fit",
+            "Soft & Breathable",
+            "Round Neck",
+            "Half Sleeve",
+            "Machine Washable"
+          ];
+        }
+
         return {
           ...p,
           price: Number(p.price) || 0,
           stockQty: Number(p.stockQty) !== undefined ? Number(p.stockQty) : 10,
           inStock: p.inStock !== false && (p.stockQty === undefined || Number(p.stockQty) > 0),
           sizes: Array.isArray(sizes) && sizes.length > 0 ? sizes : ['S', 'M', 'L', 'XL'],
-          images: Array.isArray(images) && images.length > 0 ? images : [p.imagePrimary || 'assets/tee_black_heavy.jpg']
+          images: Array.isArray(images) && images.length > 0 ? images : [p.imagePrimary || 'assets/tee_black_heavy.jpg'],
+          description: p.description || "A comfortable everyday T-shirt made from soft, breathable cotton. Designed with a clean regular fit and classic round neck.",
+          highlights: highlights
         };
       });
     } catch (e) {
@@ -232,6 +303,17 @@ class StoreService {
       ? productData.images 
       : [productData.imagePrimary, productData.imageHover].filter(Boolean);
 
+    const highlights = Array.isArray(productData.highlights) && productData.highlights.length > 0
+      ? productData.highlights
+      : [
+          "100% Cotton",
+          "Regular Fit",
+          "Soft & Breathable",
+          "Round Neck",
+          "Half Sleeve",
+          "Machine Washable"
+        ];
+
     const newProduct = {
       id: `tm-${Date.now().toString().slice(-4)}`,
       ...productData,
@@ -240,6 +322,8 @@ class StoreService {
       inStock: productData.inStock !== undefined ? productData.inStock : true,
       isNewArrival: productData.isNewArrival !== undefined ? productData.isNewArrival : true,
       images: imgs,
+      description: productData.description || "",
+      highlights: highlights,
       badge: productData.badge || "NEW"
     };
     delete newProduct.gsm;
@@ -257,13 +341,19 @@ class StoreService {
           ? updatedData.images 
           : [updatedData.imagePrimary, updatedData.imageHover].filter(Boolean);
 
+        const highlights = Array.isArray(updatedData.highlights)
+          ? updatedData.highlights
+          : (p.highlights || []);
+
         const updated = {
           ...p,
           ...updatedData,
           price: parseFloat(updatedData.price) || p.price,
           stockQty: parseInt(updatedData.stockQty) !== undefined ? parseInt(updatedData.stockQty) : p.stockQty,
           isNewArrival: updatedData.isNewArrival !== undefined ? updatedData.isNewArrival : p.isNewArrival,
-          images: imgs.length > 0 ? imgs : (p.images || [p.imagePrimary])
+          images: imgs.length > 0 ? imgs : (p.images || [p.imagePrimary]),
+          description: updatedData.description !== undefined ? updatedData.description : p.description,
+          highlights: highlights
         };
         delete updated.gsm;
         return updated;
