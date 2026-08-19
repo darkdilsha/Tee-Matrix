@@ -144,7 +144,8 @@ export class SupabaseService {
           stockQty: p.stock_qty,
           badge: p.badge,
           isFeatured: p.is_featured,
-          isNewArrival: p.is_new_arrival
+          isNewArrival: p.is_new_arrival,
+          modelImageType: p.model_image_type || 'product_only'
         }));
       }
     } catch (err) {
@@ -173,7 +174,8 @@ export class SupabaseService {
         stock_qty: product.stockQty,
         badge: product.badge,
         is_featured: product.isFeatured,
-        is_new_arrival: product.isNewArrival
+        is_new_arrival: product.isNewArrival,
+        model_image_type: product.modelImageType || 'product_only'
       };
 
       const { data, error } = await supabase.from('products').upsert([row]);

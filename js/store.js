@@ -279,7 +279,13 @@ class StoreService {
           sizes: Array.isArray(sizes) && sizes.length > 0 ? sizes : ['S', 'M', 'L', 'XL'],
           images: Array.isArray(images) && images.length > 0 ? images : [p.imagePrimary || 'assets/tee_black_heavy.jpg'],
           description: p.description || "A comfortable everyday T-shirt made from soft, breathable cotton. Designed with a clean regular fit and classic round neck.",
-          highlights: highlights
+          highlights: highlights,
+          modelImageType: p.modelImageType || 'product_only',
+          color: p.color || '',
+          pattern: p.pattern || '',
+          fit: p.fit || 'Boxy Oversized Fit',
+          neckType: p.neckType || 'Round Neck',
+          sleeveType: p.sleeveType || 'Short Sleeves'
         };
       });
     } catch (e) {
@@ -324,6 +330,7 @@ class StoreService {
       images: imgs,
       description: productData.description || "",
       highlights: highlights,
+      modelImageType: productData.modelImageType || 'product_only',
       badge: productData.badge || "NEW"
     };
     delete newProduct.gsm;
@@ -353,7 +360,8 @@ class StoreService {
           isNewArrival: updatedData.isNewArrival !== undefined ? updatedData.isNewArrival : p.isNewArrival,
           images: imgs.length > 0 ? imgs : (p.images || [p.imagePrimary]),
           description: updatedData.description !== undefined ? updatedData.description : p.description,
-          highlights: highlights
+          highlights: highlights,
+          modelImageType: updatedData.modelImageType !== undefined ? updatedData.modelImageType : (p.modelImageType || 'product_only')
         };
         delete updated.gsm;
         return updated;

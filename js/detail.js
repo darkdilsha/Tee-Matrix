@@ -78,6 +78,18 @@ export class ProductDetailModal {
                 <img src="${imgSrc}" class="thumb-img ${imgSrc === this.activeImg ? 'active' : ''}" data-index="${idx}" data-src="${imgSrc}" style="width: 70px; height: 90px; object-fit: cover; border-radius: 4px; border: ${imgSrc === this.activeImg ? '2px solid #ffffff' : '1px solid var(--border-color)'}; cursor: pointer; opacity: ${imgSrc === this.activeImg ? '1' : '0.65'}; transition: all 0.2s ease; flex-shrink: 0;" />
               `).join('')}
             </div>
+
+            <!-- AI-Generated Model Image Disclosure (Only if seller marked as AI model) -->
+            ${(product.modelImageType === 'ai_model' || product.modelImageType === 'AI-Generated Model') ? `
+              <div class="ai-model-disclosure" style="margin-top: 0.75rem; display: flex; align-items: center; gap: 0.45rem; padding: 0.4rem 0.75rem; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.09); border-radius: 6px; font-size: 0.72rem; color: var(--text-secondary);">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent-gold, #f59e0b)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="16" x2="12" y2="12"></line>
+                  <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                </svg>
+                <span>AI-generated model image. Actual product may vary slightly.</span>
+              </div>
+            ` : ''}
           </div>
 
           <!-- Product Meta & Purchase Actions -->

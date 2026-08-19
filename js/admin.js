@@ -672,6 +672,9 @@ export class AdminPanel {
       }));
     }
 
+    // State to store model image type disclosure ('product_only' | 'real_model' | 'ai_model')
+    let modelImageType = p.modelImageType || 'product_only';
+
     // State to store available sizes
     let selectedSizes = Array.isArray(p.sizes) 
       ? [...p.sizes] 
@@ -716,7 +719,7 @@ export class AdminPanel {
               <span style="font-size: 0.8rem; font-weight: 700; color: var(--accent-gold); letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.4rem;">
                 <span>📸</span> STEP 1 — PRODUCT IMAGE
               </span>
-              <span style="font-size: 0.7rem; color: var(--text-muted);">First image is Primary</span>
+              <span style="font-size: 0.7rem; color: var(--accent-gold); font-weight: 600;">★ 1st Image = Primary (AI Analyzed)</span>
             </div>
 
             <div id="adminUploadZone" class="admin-upload-zone" style="padding: 2.2rem 1rem; border-width: 2px; border-style: dashed; text-align: center; cursor: pointer; transition: all 0.2s ease;">
@@ -726,7 +729,7 @@ export class AdminPanel {
                 <polyline points="21 15 16 10 5 21"/>
               </svg>
               <div style="font-size: 0.95rem; font-weight: 600; color: #fff;">Drop T-Shirt photo here or browse</div>
-              <small style="color: var(--text-muted); display: block; margin-top: 0.25rem;">AI will automatically analyze the image and generate product details</small>
+              <small style="color: var(--text-muted); display: block; margin-top: 0.25rem;">AI will automatically analyze the Primary Image to generate product details</small>
               <input type="file" id="pFileInput" multiple accept="image/jpeg,image/png,image/webp" style="display: none;" />
             </div>
 
@@ -735,14 +738,39 @@ export class AdminPanel {
               <!-- Populated Dynamically -->
             </div>
 
-            <!-- Uploaded Image Thumbnails -->
+            <!-- Uploaded Image Thumbnails with Primary Designation -->
             <div id="adminUploadThumbs" class="admin-upload-thumbs" style="margin-top: 0.85rem;">
               <!-- Rendered Dynamically -->
             </div>
             
             <span style="font-size: 0.7rem; color: var(--text-muted); display: block; margin-top: 0.4rem;">
-              Drag thumbnails to reorder. 1st image = Primary, 2nd image = Hover.
+              The first thumbnail is the <strong>Primary Image</strong> used by AI. Click <strong>"★ Set as Primary"</strong> or drag any photo to the 1st slot to re-analyze.
             </span>
+
+            <!-- Model Image Setting -->
+            <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; font-weight: 600;">
+                  MODEL IMAGE TYPE
+                </label>
+                <span style="font-size: 0.7rem; color: var(--text-muted);">Optional disclosure for customers</span>
+              </div>
+
+              <div class="model-image-type-selector" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem;">
+                <button type="button" class="model-type-btn ${modelImageType === 'product_only' ? 'active' : ''}" data-type="product_only" style="padding: 0.6rem 0.5rem; border-radius: 8px; font-size: 0.75rem; font-weight: 600; cursor: pointer; text-align: center; border: 1px solid var(--border-color); background: rgba(255,255,255,0.03); color: var(--text-secondary); transition: all 0.2s ease;">
+                  📦 Product Only
+                </button>
+                <button type="button" class="model-type-btn ${modelImageType === 'real_model' ? 'active' : ''}" data-type="real_model" style="padding: 0.6rem 0.5rem; border-radius: 8px; font-size: 0.75rem; font-weight: 600; cursor: pointer; text-align: center; border: 1px solid var(--border-color); background: rgba(255,255,255,0.03); color: var(--text-secondary); transition: all 0.2s ease;">
+                  👤 Real Model
+                </button>
+                <button type="button" class="model-type-btn ${modelImageType === 'ai_model' ? 'active' : ''}" data-type="ai_model" style="padding: 0.6rem 0.5rem; border-radius: 8px; font-size: 0.75rem; font-weight: 600; cursor: pointer; text-align: center; border: 1px solid var(--border-color); background: rgba(255,255,255,0.03); color: var(--text-secondary); transition: all 0.2s ease;">
+                  ✨ AI-Generated Model
+                </button>
+              </div>
+              <span style="font-size: 0.7rem; color: var(--text-muted); display: block; margin-top: 0.4rem;">
+                If <strong>"AI-Generated Model"</strong> is selected, a subtle disclosure notice ("AI-generated model image. Actual product may vary slightly.") will appear on the product page.
+              </span>
+            </div>
           </div>
 
           <!-- STEP 2: AI GENERATED PRODUCT INFORMATION -->
@@ -955,11 +983,18 @@ export class AdminPanel {
               return a.left - b.left;
             });
 
+            const oldPrimaryId = uploadedImages[0]?.id || uploadedImages[0]?.url;
             const orderChanged = rects.some((r, i) => r.index !== i);
             if (orderChanged) {
               const reordered = rects.map(r => uploadedImages[r.index]);
               uploadedImages = reordered;
               renderThumbnails();
+
+              const newPrimaryId = uploadedImages[0]?.id || uploadedImages[0]?.url;
+              if (oldPrimaryId !== newPrimaryId && uploadedImages[0]) {
+                // Primary image changed: re-analyze using the new Primary Image ONLY
+                triggerAIAnalysis(uploadedImages[0].file || uploadedImages[0].url);
+              }
             } else {
               gsap.set(el, { x: 0, y: 0 });
             }
@@ -987,22 +1022,21 @@ export class AdminPanel {
       }
 
       thumbsContainer.innerHTML = uploadedImages.map((img, idx) => {
-        let badgeClass = '';
-        let badgeText = '';
-        if (idx === 0) {
-          badgeClass = 'primary';
-          badgeText = 'PRIMARY';
-        } else if (idx === 1) {
-          badgeClass = 'hover';
-          badgeText = 'HOVER';
-        } else {
-          badgeText = `LOOK ${String(idx + 1).padStart(2, '0')}`;
-        }
+        const isPrimary = idx === 0;
+        const badgeClass = isPrimary ? 'primary' : (idx === 1 ? 'hover' : '');
+        const badgeText = isPrimary ? '★ PRIMARY' : (idx === 1 ? 'HOVER' : `LOOK ${String(idx + 1).padStart(2, '0')}`);
 
         return `
-          <div class="admin-upload-thumb" data-index="${idx}">
+          <div class="admin-upload-thumb ${isPrimary ? 'is-primary' : ''}" data-index="${idx}" style="${isPrimary ? 'border: 2px solid var(--accent-gold); box-shadow: 0 0 12px rgba(245,158,11,0.3); position: relative;' : 'position: relative;'}">
             <img src="${img.url}" alt="Thumbnail ${idx}" />
             <button type="button" class="remove-btn" data-index="${idx}">&times;</button>
+            
+            ${!isPrimary ? `
+              <button type="button" class="make-primary-btn" data-index="${idx}" title="Set as Primary Image (AI will analyze this photo)" style="position: absolute; bottom: 6px; left: 4px; right: 4px; background: rgba(0,0,0,0.85); border: 1px solid rgba(245,158,11,0.4); color: #fff; font-size: 0.65rem; padding: 0.25rem 0.2rem; border-radius: 4px; cursor: pointer; text-align: center; font-weight: 700; z-index: 10; transition: all 0.2s ease;">
+                ★ Set Primary
+              </button>
+            ` : ''}
+
             ${img.uploading ? `
               <div class="progress-overlay">
                 <div class="spinner"></div>
@@ -1028,6 +1062,21 @@ export class AdminPanel {
         });
       });
 
+      // Handle "Set as Primary" button click
+      thumbsContainer.querySelectorAll('.make-primary-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const idx = parseInt(btn.dataset.index);
+          if (idx > 0 && idx < uploadedImages.length) {
+            const selectedPrimary = uploadedImages.splice(idx, 1)[0];
+            uploadedImages.unshift(selectedPrimary);
+            renderThumbnails();
+            // Automatically re-run AI analysis on the new Primary Image ONLY
+            triggerAIAnalysis(selectedPrimary.file || selectedPrimary.url);
+          }
+        });
+      });
+
       initDraggableThumbs();
     };
 
@@ -1042,11 +1091,12 @@ export class AdminPanel {
         aiStatus.innerHTML = `
           <div style="display: flex; align-items: center; gap: 0.65rem; color: #38bdf8;">
             <div class="spinner" style="width: 16px; height: 16px; border: 2px solid rgba(56, 189, 248, 0.25); border-top-color: #38bdf8; border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0;"></div>
-            <span style="font-weight: 600; font-size: 0.85rem;">Analyzing product...</span>
+            <span style="font-weight: 600; font-size: 0.85rem;">Analyzing Primary Image...</span>
           </div>
         `;
       }
 
+      // Analyze ONLY the Primary Image
       const aiResult = await ProductImageAI.analyzeImage(fileOrUrl);
 
       if (!aiStatus) return;
@@ -1103,12 +1153,12 @@ export class AdminPanel {
           <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; color: #10b981;">
             <div style="display: flex; align-items: center; gap: 0.5rem;">
               <span>✨</span>
-              <span><strong>AI Analysis Complete:</strong> Generated Name ("${aiResult.name}"), Description, ${aiResult.highlights.length} Highlights & Specs. You can edit any field before saving.</span>
+              <span><strong>AI Analysis Complete (Primary Image):</strong> Generated Name ("${aiResult.name}"), Description, ${aiResult.highlights.length} Highlights & Specs. You can edit any field before saving.</span>
             </div>
             <button type="button" style="background: none; border: none; color: #10b981; cursor: pointer; font-size: 1.2rem; line-height: 1; padding: 0 0.3rem;" onclick="this.closest('#aiStatusContainer').style.display='none'">&times;</button>
           </div>
         `;
-        store.showToast(`✨ Generated "${aiResult.name}" details from image!`);
+        store.showToast(`✨ Generated "${aiResult.name}" details from Primary Image!`);
       } else {
         aiStatus.style.background = 'rgba(239, 68, 68, 0.08)';
         aiStatus.style.border = '1px solid rgba(239, 68, 68, 0.25)';
@@ -1116,7 +1166,7 @@ export class AdminPanel {
           <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; color: #ef4444;">
             <div style="display: flex; align-items: center; gap: 0.5rem;">
               <span>⚠️</span>
-              <span>${aiResult.error || 'Could not analyze image'}. You can enter details manually.</span>
+              <span>${aiResult.error || 'Could not analyze Primary Image'}. You can enter details manually.</span>
             </div>
             <button type="button" style="background: none; border: none; color: #ef4444; cursor: pointer; font-size: 1.2rem; line-height: 1; padding: 0 0.3rem;" onclick="this.closest('#aiStatusContainer').style.display='none'">&times;</button>
           </div>
@@ -1126,6 +1176,7 @@ export class AdminPanel {
 
     const handleFiles = (files) => {
       const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      const wasEmpty = uploadedImages.length === 0;
       let firstValidFile = null;
 
       for (let i = 0; i < files.length; i++) {
@@ -1174,8 +1225,8 @@ export class AdminPanel {
         });
       }
 
-      // Automatically trigger fast AI analysis on the uploaded T-shirt image
-      if (firstValidFile) {
+      // Automatically trigger AI analysis ONLY if this upload set provides the Primary Image
+      if (wasEmpty && firstValidFile) {
         triggerAIAnalysis(firstValidFile);
       }
     };
@@ -1206,6 +1257,16 @@ export class AdminPanel {
         if (e.target.files && e.target.files.length > 0) {
           handleFiles(e.target.files);
         }
+      });
+
+      // Model Image Type selector buttons
+      modal.querySelectorAll('.model-type-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          modelImageType = btn.dataset.type;
+          modal.querySelectorAll('.model-type-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.type === modelImageType);
+          });
+        });
       });
     };
 
@@ -1333,13 +1394,13 @@ export class AdminPanel {
       renderHighlights();
     };
 
-    // Connect Re-Analyze AI trigger button
+    // Connect Re-Analyze AI trigger button (Analyzes Primary Image Only)
     document.getElementById('reAnalyzeBtn')?.addEventListener('click', () => {
-      const primaryImg = uploadedImages.find(img => !img.error && img.url);
-      if (primaryImg) {
+      const primaryImg = uploadedImages[0];
+      if (primaryImg && !primaryImg.error && primaryImg.url) {
         triggerAIAnalysis(primaryImg.file || primaryImg.url);
       } else {
-        store.showToast("Please upload a product photo first to analyze with AI.", 'error');
+        store.showToast("Please upload a primary product photo first to analyze with AI.", 'error');
       }
     });
 
@@ -1393,6 +1454,7 @@ export class AdminPanel {
         images: parsedImgs,
         description: document.getElementById('pDesc').value.trim(),
         highlights: finalHighlights,
+        modelImageType: modelImageType,
         color: document.getElementById('pColor')?.value.trim() || '',
         pattern: document.getElementById('pPattern')?.value.trim() || '',
         fit: document.getElementById('pFit')?.value.trim() || 'Boxy Oversized Fit',
