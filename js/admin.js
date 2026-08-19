@@ -671,6 +671,12 @@ export class AdminPanel {
       }));
     }
 
+    // State to store available sizes
+    let selectedSizes = Array.isArray(p.sizes) 
+      ? [...p.sizes] 
+      : (typeof p.sizes === 'string' ? JSON.parse(p.sizes) : ['S', 'M', 'L', 'XL']);
+    if (!selectedSizes || selectedSizes.length === 0) selectedSizes = ['S', 'M', 'L', 'XL'];
+
     modal.innerHTML = `
       <div class="modal-content glass-panel" style="max-width: 700px; padding: 2.5rem;">
         <button class="modal-close" id="closeFormBtn">
@@ -741,6 +747,33 @@ export class AdminPanel {
             <span style="font-size: 0.7rem; color: var(--text-muted); display: block; margin-top: 0.3rem;">
               First image is the PRIMARY product photo. Second image is the HOVER photo. Drag thumbnails to reorder them!
             </span>
+          </div>
+
+          <!-- Available Sizes Selector -->
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+              <label style="font-size: 0.75rem; color: var(--text-secondary); display: block;">AVAILABLE SIZES *</label>
+              <span style="font-size: 0.7rem; color: var(--text-muted);">Click to toggle / add sizes</span>
+            </div>
+            
+            <div class="admin-size-selector" id="adminSizeSelector">
+              ${['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'].map(sz => `
+                <button type="button" class="admin-size-pill ${selectedSizes.includes(sz) ? 'active' : ''}" data-size="${sz}">
+                  ${sz}
+                </button>
+              `).join('')}
+              ${selectedSizes.filter(s => !['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'].includes(s)).map(customSz => `
+                <button type="button" class="admin-size-pill active" data-size="${customSz}">
+                  ${customSz}
+                </button>
+              `).join('')}
+            </div>
+
+            <!-- Custom Size Input -->
+            <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+              <input type="text" id="customSizeInput" class="input-field" placeholder="Custom size (e.g. Free Size, 4XL)" style="font-size: 0.8rem; padding: 0.5rem 0.75rem;" />
+              <button type="button" id="addCustomSizeBtn" class="btn-secondary" style="white-space: nowrap; padding: 0.5rem 1rem; font-size: 0.75rem;">+ ADD SIZE</button>
+            </div>
           </div>
 
           <div>
@@ -963,9 +996,55 @@ export class AdminPanel {
       });
     };
 
+    const setupSizeEvents = () => {
+      const sizeSelector = document.getElementById('adminSizeSelector');
+      if (sizeSelector) {
+        sizeSelector.addEventListener('click', (e) => {
+          const pill = e.target.closest('.admin-size-pill');
+          if (!pill) return;
+          const sz = pill.dataset.size;
+          if (selectedSizes.includes(sz)) {
+            selectedSizes = selectedSizes.filter(s => s !== sz);
+            pill.classList.remove('active');
+          } else {
+            selectedSizes.push(sz);
+            pill.classList.add('active');
+          }
+        });
+      }
+
+      const customInput = document.getElementById('customSizeInput');
+      const addCustomBtn = document.getElementById('addCustomSizeBtn');
+      if (addCustomBtn && customInput && sizeSelector) {
+        const handleAddCustomSize = () => {
+          const val = customInput.value.trim().toUpperCase();
+          if (!val) return;
+          if (!selectedSizes.includes(val)) {
+            selectedSizes.push(val);
+            const newBtn = document.createElement('button');
+            newBtn.type = 'button';
+            newBtn.className = 'admin-size-pill active';
+            newBtn.dataset.size = val;
+            newBtn.innerText = val;
+            sizeSelector.appendChild(newBtn);
+          }
+          customInput.value = '';
+        };
+
+        addCustomBtn.addEventListener('click', handleAddCustomSize);
+        customInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            handleAddCustomSize();
+          }
+        });
+      }
+    };
+
     // Initial render and setup
     renderThumbnails();
     setupUploadEvents();
+    setupSizeEvents();
 
     setTimeout(() => modal.classList.add('active'), 10);
 
@@ -989,6 +1068,11 @@ export class AdminPanel {
         return;
       }
 
+      if (selectedSizes.length === 0) {
+        store.showToast("Please select at least one available size for this product.", 'error');
+        return;
+      }
+
       const formData = {
         name: document.getElementById('pName').value,
         category: document.getElementById('pCategory').value,
@@ -1002,7 +1086,7 @@ export class AdminPanel {
         inStock: parseInt(document.getElementById('pStockQty').value) > 0,
         badge: isEdit ? p.badge : 'NEW',
         fit: p.fit || 'Boxy Fit',
-        sizes: p.sizes || ['S', 'M', 'L', 'XL']
+        sizes: selectedSizes
       };
 
       if (isEdit) {
