@@ -158,50 +158,50 @@ export class FashionMotionController {
       el.style.transform = 'none';
     });
 
-    // Asynchronously load Motion for scroll enhancements without blocking UI
-    getMotionModule().then(motion => {
-      // 2. Parallax Background Layers
-      if (!this.isMobile && motion && typeof motion.scroll === 'function' && typeof motion.animate === 'function') {
-        const heroSection = document.getElementById('hero');
-        if (heroBg && heroSection) {
-          motion.scroll(
-            motion.animate(heroBg, { transform: ['translateY(0px)', 'translateY(60px)'] }),
-            { target: heroSection, offset: ['start start', 'end start'] }
-          );
-        }
+    // Load Motion for scroll enhancements (synchronous — loaded via CDN script tag)
+    const motion = getMotionModule();
 
-        const storyBg = document.getElementById('storyBg');
-        const storySection = document.getElementById('story');
-        if (storyBg && storySection) {
-          motion.scroll(
-            motion.animate(storyBg, { transform: ['translateY(0px)', 'translateY(60px)'] }),
-            { target: storySection, offset: ['start end', 'end start'] }
-          );
-        }
+    // 2. Parallax Background Layers
+    if (!this.isMobile && motion && typeof motion.scroll === 'function' && typeof motion.animate === 'function') {
+      const heroSection = document.getElementById('hero');
+      if (heroBg && heroSection) {
+        motion.scroll(
+          motion.animate(heroBg, { transform: ['translateY(0px)', 'translateY(60px)'] }),
+          { target: heroSection, offset: ['start start', 'end start'] }
+        );
       }
 
-      // 3. Entrance Reveals
-      if (motion && typeof motion.inView === 'function' && typeof motion.animate === 'function') {
-        document.querySelectorAll('.editorial-section').forEach((section) => {
-          motion.inView(section, () => {
-            const tag = section.querySelector('.section-tag');
-            const title = section.querySelector('.section-title');
-            const cards = section.querySelectorAll('.product-card');
+      const storyBg = document.getElementById('storyBg');
+      const storySection = document.getElementById('story');
+      if (storyBg && storySection) {
+        motion.scroll(
+          motion.animate(storyBg, { transform: ['translateY(0px)', 'translateY(60px)'] }),
+          { target: storySection, offset: ['start end', 'end start'] }
+        );
+      }
+    }
 
-            if (tag) motion.animate(tag, { opacity: [0, 1], transform: ['translateY(16px)', 'translateY(0px)'] }, { duration: 0.8 });
-            if (title) motion.animate(title, { opacity: [0, 1], transform: ['translateY(24px)', 'translateY(0px)'] }, { duration: 1.0 });
-            if (cards.length > 0) {
-              cards.forEach((card, i) => {
-                motion.animate(card, { opacity: [0, 1], transform: ['translateY(28px)', 'translateY(0px)'] }, { duration: 1.0, delay: i * 0.1 });
-              });
-            }
-          });
+    // 3. Entrance Reveals
+    if (motion && typeof motion.inView === 'function' && typeof motion.animate === 'function') {
+      document.querySelectorAll('.editorial-section').forEach((section) => {
+        motion.inView(section, () => {
+          const tag = section.querySelector('.section-tag');
+          const title = section.querySelector('.section-title');
+          const cards = section.querySelectorAll('.product-card');
+
+          if (tag) motion.animate(tag, { opacity: [0, 1], transform: ['translateY(16px)', 'translateY(0px)'] }, { duration: 0.8 });
+          if (title) motion.animate(title, { opacity: [0, 1], transform: ['translateY(24px)', 'translateY(0px)'] }, { duration: 1.0 });
+          if (cards.length > 0) {
+            cards.forEach((card, i) => {
+              motion.animate(card, { opacity: [0, 1], transform: ['translateY(28px)', 'translateY(0px)'] }, { duration: 1.0, delay: i * 0.1 });
+            });
+          }
         });
-      }
+      });
+    }
 
-      // 4. Pinned Collection Showcase
-      this.initPinnedCollectionSection(motion);
-    });
+    // 4. Pinned Collection Showcase
+    this.initPinnedCollectionSection(motion);
 
     // 5. Desktop 3D Card Tilt-on-Hover
     this.init3DCardTilt();
