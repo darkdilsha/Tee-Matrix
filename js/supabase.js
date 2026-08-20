@@ -187,6 +187,15 @@ export class SupabaseService {
     }
   }
 
+  async deleteProduct(id) {
+    try {
+      const { error } = await supabase.from('products').delete().eq('id', id);
+      if (error) console.warn('Supabase delete product error:', error.message);
+    } catch (e) {
+      console.warn('Supabase delete product error:', e);
+    }
+  }
+
   // 4b. Product Image Upload to Supabase Storage
   async uploadProductImage(file) {
     try {

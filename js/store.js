@@ -1,4 +1,5 @@
 // TEE MATRIX - Database & State Store with LocalStorage Persistence
+import { supabaseService } from './supabase.js';
 
 const INITIAL_PRODUCTS = [
   {
@@ -208,10 +209,20 @@ class StoreService {
   }
 
   init() {
-    const stored = localStorage.getItem('tm_products');
-    if (!stored || JSON.parse(stored)[0]?.price < 100 || JSON.parse(stored)[0]?.gsm !== undefined) {
+    try {
+      const stored = localStorage.getItem('tm_products');
+      if (!stored) {
+        localStorage.setItem('tm_products', JSON.stringify(INITIAL_PRODUCTS));
+      } else {
+        const parsed = JSON.parse(stored);
+        if (!Array.isArray(parsed) || parsed.length === 0) {
+          localStorage.setItem('tm_products', JSON.stringify(INITIAL_PRODUCTS));
+        }
+      }
+    } catch (e) {
       localStorage.setItem('tm_products', JSON.stringify(INITIAL_PRODUCTS));
     }
+
     if (!localStorage.getItem('tm_cart')) {
       localStorage.setItem('tm_cart', JSON.stringify([]));
     }
@@ -222,6 +233,28 @@ class StoreService {
     const existingCustomers = localStorage.getItem('tm_customers');
     if (!existingCustomers || (JSON.parse(existingCustomers)[0]?.email === 'jordan@example.com')) {
       localStorage.setItem('tm_customers', JSON.stringify([]));
+    }
+
+    // Auto-sync remote catalog from Supabase
+    this.syncFromSupabase();
+  }
+
+  async syncFromSupabase() {
+    try {
+      const remoteProducts = await supabaseService.fetchProducts();
+      if (remoteProducts && Array.isArray(remoteProducts) && remoteProducts.length > 0) {
+        const local = this.getProducts();
+        const merged = [...remoteProducts];
+        local.forEach(lp => {
+          if (!merged.some(rp => rp.id === lp.id)) {
+            merged.push(lp);
+          }
+        });
+        localStorage.setItem('tm_products', JSON.stringify(merged));
+        this.notify();
+      }
+    } catch (err) {
+      console.warn('Sync from Supabase notice:', err);
     }
   }
 
@@ -417,11 +450,13 @@ class StoreService {
     products.unshift(newProduct);
     localStorage.setItem('tm_products', JSON.stringify(products));
     this.notify();
+    supabaseService.saveProduct(newProduct);
     return newProduct;
   }
 
   updateProduct(id, updatedData) {
     let products = this.getProducts();
+    let updatedProduct = null;
     products = products.map(p => {
       if (p.id === id) {
         const imgs = updatedData.images && updatedData.images.length > 0 
@@ -462,34 +497,41 @@ class StoreService {
           modelImageType: updatedData.modelImageType !== undefined ? updatedData.modelImageType : (p.modelImageType || 'product_only')
         };
         delete updated.gsm;
+        updatedProduct = updated;
         return updated;
       }
       return p;
     });
     localStorage.setItem('tm_products', JSON.stringify(products));
     this.notify();
+    if (updatedProduct) supabaseService.saveProduct(updatedProduct);
   }
 
   toggleNewArrival(id) {
+    let target = null;
     const products = this.getProducts().map(p => {
       if (p.id === id) {
         const nextState = !p.isNewArrival;
         this.showToast(nextState ? `Added "${p.name}" to New Arrivals` : `Removed "${p.name}" from New Arrivals`);
-        return { ...p, isNewArrival: nextState };
+        target = { ...p, isNewArrival: nextState };
+        return target;
       }
       return p;
     });
     localStorage.setItem('tm_products', JSON.stringify(products));
     this.notify();
+    if (target) supabaseService.saveProduct(target);
   }
 
   deleteProduct(id) {
     const products = this.getProducts().filter(p => p.id !== id);
     localStorage.setItem('tm_products', JSON.stringify(products));
     this.notify();
+    supabaseService.deleteProduct(id);
   }
 
   toggleStock(id) {
+    let target = null;
     let products = this.getProducts();
     products = products.map(p => {
       if (p.id === id) {
@@ -511,17 +553,19 @@ class StoreService {
         }
         const newTotal = Object.values(newSizeStock).reduce((s, q) => s + (Number(q) || 0), 0);
         this.showToast(nextState ? `Marked "${p.name}" as In Stock` : `Marked "${p.name}" as Out of Stock`);
-        return {
+        target = {
           ...p,
           sizeStock: newSizeStock,
           stockQty: newTotal,
           inStock: nextState
         };
+        return target;
       }
       return p;
     });
     localStorage.setItem('tm_products', JSON.stringify(products));
     this.notify();
+    if (target) supabaseService.saveProduct(target);
   }
 
   // Cart Management

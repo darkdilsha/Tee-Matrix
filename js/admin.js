@@ -1206,9 +1206,8 @@ export class AdminPanel {
         if (!firstValidFile) firstValidFile = file;
 
         const tempId = Math.random().toString();
-        const tempUrl = URL.createObjectURL(file);
         const imgObj = {
-          url: tempUrl,
+          url: '',
           id: tempId,
           file: file,
           uploading: true,
@@ -1216,22 +1215,28 @@ export class AdminPanel {
         };
 
         uploadedImages.push(imgObj);
-        renderThumbnails();
 
-        supabaseService.uploadProductImage(file).then(res => {
-          if (res.success) {
-            imgObj.url = res.url;
-            imgObj.uploading = false;
-          } else {
-            imgObj.uploading = false;
-            imgObj.error = true;
-            store.showToast(`Upload failed for "${file.name}": ${res.error}`, 'error');
+        // 1. Read as persistent Data URL immediately
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          if (!imgObj.url || imgObj.url.startsWith('blob:')) {
+            imgObj.url = e.target.result;
           }
+          renderThumbnails();
+        };
+        reader.readAsDataURL(file);
+
+        // 2. Upload to Supabase Storage in parallel
+        supabaseService.uploadProductImage(file).then(res => {
+          if (res.success && res.url) {
+            imgObj.url = res.url;
+          }
+          imgObj.uploading = false;
+          imgObj.error = false;
           renderThumbnails();
         }).catch(err => {
           imgObj.uploading = false;
-          imgObj.error = true;
-          store.showToast(`Upload failed for "${file.name}"`, 'error');
+          imgObj.error = false;
           renderThumbnails();
         });
       }

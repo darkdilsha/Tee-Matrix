@@ -68,9 +68,9 @@ export class CatalogPage {
           <div class="category-scroll-row">
             ${(this.isNewArrivalsMode 
               ? ['All New', 'Acid Wash', 'Graphic', 'Heavyweight Minimal', 'Vintage']
-              : ['All', 'New', 'Oversized', 'Graphic', 'Plain', 'Best Sellers']
+              : ['All', 'New', 'Acid Wash', 'Graphic', 'Heavyweight Minimal', 'Vintage', 'Best Sellers']
             ).map(cat => `
-              <button class="pill-btn ${(this.currentCategory === cat || (cat === 'All New' && this.currentCategory === 'All')) && !this.showOnlyWishlist ? 'active' : ''}" data-category="${cat}" style="border-radius: 20px; white-space: nowrap;">
+              <button class="pill-btn ${(this.currentCategory === cat || (cat === 'All New' && (this.currentCategory === 'All' || this.currentCategory === 'All New'))) && !this.showOnlyWishlist ? 'active' : ''}" data-category="${cat}" style="border-radius: 20px; white-space: nowrap;">
                 ${cat}
               </button>
             `).join('')}
@@ -192,17 +192,17 @@ export class CatalogPage {
     }
 
     // Category filter
-    if (this.currentCategory !== 'All' && !this.showOnlyWishlist) {
+    if (this.currentCategory !== 'All' && this.currentCategory !== 'All New' && !this.showOnlyWishlist) {
       if (this.currentCategory === 'New') {
         products = products.filter(p => p.isNewArrival || p.badge === 'NEW');
       } else if (this.currentCategory === 'Best Sellers') {
         products = products.filter(p => p.badge === 'BESTSELLER' || p.isFeatured);
       } else if (this.currentCategory === 'Oversized') {
-        products = products.filter(p => p.fit.toLowerCase().includes('oversized') || p.fit.toLowerCase().includes('boxy'));
+        products = products.filter(p => (p.fit || '').toLowerCase().includes('oversized') || (p.fit || '').toLowerCase().includes('boxy'));
       } else if (this.currentCategory === 'Plain') {
         products = products.filter(p => p.category === 'Heavyweight Minimal' || p.category === 'Vintage');
       } else {
-        products = products.filter(p => p.category.toLowerCase().includes(this.currentCategory.toLowerCase()));
+        products = products.filter(p => (p.category || '').toLowerCase().includes(this.currentCategory.toLowerCase()));
       }
     }
 
