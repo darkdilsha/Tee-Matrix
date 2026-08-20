@@ -180,7 +180,10 @@ export class AdminPanel {
           <button class="pill-btn ${this.activeTab === 'orders' ? 'active' : ''}" id="tabOrdersBtn" style="padding: 0.8rem 1.8rem; font-size: 0.85rem;">
             CUSTOMER ORDERS (${orders.length})
           </button>
-          <button class="pill-btn ${this.activeTab === 'analytics' ? 'active' : ''}" id="tabAnalyticsBtn" style="padding: 0.8rem 1.8rem; font-size: 0.85rem; border-color: var(--accent-gold); color: ${this.activeTab === 'analytics' ? '#000' : 'var(--accent-gold)'}">
+          <button class="pill-btn ${this.activeTab === 'payment_settings' ? 'active' : ''}" id="tabPaymentSettingsBtn" style="padding: 0.8rem 1.8rem; font-size: 0.85rem; border-color: var(--accent-gold); color: ${this.activeTab === 'payment_settings' ? '#000' : 'var(--accent-gold)'}">
+            ⚙️ PAYMENT SETTINGS
+          </button>
+          <button class="pill-btn ${this.activeTab === 'analytics' ? 'active' : ''}" id="tabAnalyticsBtn" style="padding: 0.8rem 1.8rem; font-size: 0.85rem;">
             ANALYTICS & PORTFOLIO
           </button>
           ${store.isMasterAdmin() ? `
@@ -190,7 +193,7 @@ export class AdminPanel {
           ` : ''}
         </div>
 
-        ${this.activeTab === 'products' ? this.renderProductsTab(products) : this.activeTab === 'orders' ? this.renderOrdersTab(orders) : this.activeTab === 'analytics' ? this.renderAnalyticsTab(products, orders) : (store.isMasterAdmin() ? this.renderAdminUsersTab() : this.renderProductsTab(products))}
+        ${this.activeTab === 'products' ? this.renderProductsTab(products) : this.activeTab === 'orders' ? this.renderOrdersTab(orders) : this.activeTab === 'payment_settings' ? this.renderPaymentSettingsTab() : this.activeTab === 'analytics' ? this.renderAnalyticsTab(products, orders) : (store.isMasterAdmin() ? this.renderAdminUsersTab() : this.renderProductsTab(products))}
       </div>
     `;
   }
@@ -283,7 +286,7 @@ export class AdminPanel {
   renderOrdersTab(orders) {
     return `
       <div>
-        <h2 style="font-size: 1.4rem; color: #fff; margin-bottom: 1.5rem;">ONLINE DISPATCH ORDERS</h2>
+        <h2 style="font-size: 1.4rem; color: #fff; margin-bottom: 1.5rem;">ONLINE DISPATCH ORDERS (${orders.length})</h2>
         <div style="overflow-x: auto;">
           <table class="admin-table">
             <thead>
@@ -291,34 +294,153 @@ export class AdminPanel {
                 <th>Order ID</th>
                 <th>Date</th>
                 <th>Customer</th>
-                <th>Shipping Address</th>
-                <th>Items</th>
+                <th>Payment Mode</th>
+                <th>Payment Status</th>
+                <th>Items (Size & Qty)</th>
                 <th>Total</th>
-                <th>Status</th>
+                <th>Order Status</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
-              ${orders.map(o => `
+              ${orders.length === 0 ? `
                 <tr>
-                  <td><strong style="color: #fff;">#${o.id}</strong></td>
+                  <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 2rem;">No orders registered yet.</td>
+                </tr>
+              ` : orders.map(o => `
+                <tr>
+                  <td><strong style="color: #fff; font-family: monospace;">#${o.id}</strong></td>
                   <td style="color: var(--text-muted); font-size: 0.8rem;">${o.date}</td>
                   <td>
                     <strong style="color: #fff; display: block; font-size: 0.9rem;">${o.customerName}</strong>
-                    <span style="font-size: 0.75rem; color: var(--text-muted);">${o.email}</span>
+                    <span style="font-size: 0.75rem; color: var(--text-muted);">${o.phone || o.email}</span>
                   </td>
-                  <td style="color: var(--text-secondary); font-size: 0.8rem; max-width: 250px;">${o.address}</td>
-                  <td style="font-size: 0.8rem; color: var(--text-secondary);">
-                    ${Array.isArray(o.items) ? o.items.map(i => `${i.name} (${i.size || 'M'}) x${i.qty}`).join('<br/>') : 'No items'}
-                  </td>
-                  <td style="color: #fff; font-weight: 700;">₹${o.total.toLocaleString('en-IN')}</td>
                   <td>
-                    <span class="badge badge-stock">${o.status}</span>
+                    <span style="display: block; font-weight: 700; color: #fff; font-size: 0.85rem;">
+                      ${o.paymentMethod || 'UPI'}
+                    </span>
+                    ${o.paymentDetails?.utr ? `
+                      <span style="font-size: 0.7rem; font-family: monospace; color: var(--accent-gold); display: block;">
+                        UTR: ${o.paymentDetails.utr}
+                      </span>
+                    ` : ''}
+                  </td>
+                  <td>
+                    <span class="badge ${o.paymentStatus === 'PAID' ? 'badge-stock' : (o.paymentStatus === 'PENDING_VERIFICATION' ? 'badge-gold' : 'badge-silver')}" style="font-size: 0.7rem;">
+                      ${o.paymentStatus || 'PENDING'}
+                    </span>
+                  </td>
+                  <td style="font-size: 0.8rem; color: var(--text-secondary);">
+                    ${Array.isArray(o.items) ? o.items.map(i => `
+                      <div style="margin-bottom: 0.2rem;">
+                        <span style="color: #fff;">${i.name}</span> <strong style="color: var(--accent-silver);">(${i.size || 'M'})</strong> &times; ${i.qty}
+                      </div>
+                    `).join('') : 'No items'}
+                  </td>
+                  <td style="color: #fff; font-weight: 700; font-size: 0.95rem;">₹${(o.total || 0).toLocaleString('en-IN')}</td>
+                  <td>
+                    <span style="font-size: 0.78rem; color: ${o.paymentStatus === 'PAID' ? 'var(--accent-success)' : 'var(--text-muted)'};">
+                      ${o.status || 'Processing'}
+                    </span>
+                  </td>
+                  <td>
+                    ${o.paymentStatus === 'PENDING_VERIFICATION' ? `
+                      <button class="btn-primary verify-order-payment-btn" data-id="${o.id}" style="padding: 0.4rem 0.8rem; font-size: 0.7rem; background: #10b981; border-color: #10b981;">
+                        ✓ Confirm Paid
+                      </button>
+                    ` : `
+                      <span style="font-size: 0.75rem; color: var(--accent-success);">Verified ✓</span>
+                    `}
                   </td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
         </div>
+      </div>
+    `;
+  }
+
+  renderPaymentSettingsTab() {
+    const config = store.getPaymentConfig();
+
+    return `
+      <div>
+        <div style="margin-bottom: 2rem;">
+          <h2 style="font-size: 1.4rem; color: #fff; margin-bottom: 0.5rem;">PAYMENT GATEWAY CONFIGURATION</h2>
+          <span style="font-size: 0.82rem; color: var(--text-muted);">Configure merchant UPI details, Razorpay credentials, COD policies, and tax options.</span>
+        </div>
+
+        <form id="paymentConfigForm" style="max-width: 680px; display: flex; flex-direction: column; gap: 1.5rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.08); padding: 2rem; border-radius: 8px;">
+          
+          <!-- UPI Settings Card -->
+          <div style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
+            <h3 style="font-size: 1.1rem; color: #fff; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+              ⚡ UPI Direct & Dynamic QR Settings
+            </h3>
+            
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+              <div>
+                <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem; font-weight: 600;">
+                  MERCHANT UPI ID / VPA *
+                </label>
+                <input type="text" id="adminMerchantUpi" required class="input-field" value="${config.merchantUpiVpa || 'teematrix@okaxis'}" placeholder="e.g. yourname@okaxis or business@upi" />
+                <span style="font-size: 0.7rem; color: var(--text-muted); display: block; margin-top: 0.3rem;">
+                  All customer UPI payments and dynamic QR codes will route directly to this UPI address.
+                </span>
+              </div>
+
+              <div>
+                <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem; font-weight: 600;">
+                  BUSINESS DISPLAY NAME *
+                </label>
+                <input type="text" id="adminMerchantName" required class="input-field" value="${config.merchantName || 'TEE MATRIX ATELIER'}" placeholder="e.g. TEE MATRIX ATELIER" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Razorpay Settings Card -->
+          <div style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
+            <h3 style="font-size: 1.1rem; color: #fff; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+              💳 Razorpay Gateway (Cards / NetBanking / International)
+            </h3>
+            
+            <div>
+              <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem; font-weight: 600;">
+                PUBLIC RAZORPAY KEY ID
+              </label>
+              <input type="text" id="adminRazorpayKeyId" class="input-field" value="${config.razorpayKeyId || ''}" placeholder="rzp_live_... or rzp_test_..." />
+              <span style="font-size: 0.7rem; color: var(--text-muted); display: block; margin-top: 0.3rem;">
+                Card & NetBanking tab is enabled automatically when this key is present. Secret key is kept safely on server.
+              </span>
+            </div>
+          </div>
+
+          <!-- COD & GST Settings -->
+          <div>
+            <h3 style="font-size: 1.1rem; color: #fff; margin-bottom: 1rem;">
+              📦 Order Policies & Tax Settings
+            </h3>
+
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+              <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; color: #fff; font-size: 0.85rem;">
+                <input type="checkbox" id="adminEnableCod" ${config.enableCOD !== false ? 'checked' : ''} style="width: 18px; height: 18px;" />
+                <span>Enable <strong>Cash on Delivery (COD)</strong> option at checkout</span>
+              </label>
+
+              <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; color: #fff; font-size: 0.85rem;">
+                <input type="checkbox" id="adminEnableGst" ${config.enableGST ? 'checked' : ''} style="width: 18px; height: 18px;" />
+                <span>Enable <strong>GST Tax calculation & invoice line</strong> (Leave unchecked if not GST registered)</span>
+              </label>
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; margin-top: 1rem;">
+            <button type="submit" class="btn-primary" id="savePaymentConfigBtn" style="padding: 0.8rem 2rem; font-size: 0.8rem;">
+              SAVE PAYMENT SETTINGS
+            </button>
+          </div>
+        </form>
       </div>
     `;
   }
@@ -1694,6 +1816,11 @@ export class AdminPanel {
       reRenderCallback();
     });
 
+    document.getElementById('tabPaymentSettingsBtn')?.addEventListener('click', () => {
+      this.activeTab = 'payment_settings';
+      reRenderCallback();
+    });
+
     document.getElementById('tabAnalyticsBtn')?.addEventListener('click', () => {
       this.activeTab = 'analytics';
       reRenderCallback();
@@ -1702,6 +1829,41 @@ export class AdminPanel {
     document.getElementById('tabAdminUsersBtn')?.addEventListener('click', () => {
       this.activeTab = 'admin_users';
       reRenderCallback();
+    });
+
+    // Payment Config Form Submit
+    const paymentForm = document.getElementById('paymentConfigForm');
+    if (paymentForm) {
+      paymentForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const upi = document.getElementById('adminMerchantUpi')?.value.trim();
+        const name = document.getElementById('adminMerchantName')?.value.trim();
+        const rzpKey = document.getElementById('adminRazorpayKeyId')?.value.trim();
+        const cod = document.getElementById('adminEnableCod')?.checked;
+        const gst = document.getElementById('adminEnableGst')?.checked;
+
+        store.updatePaymentConfig({
+          merchantUpiVpa: upi,
+          merchantName: name,
+          razorpayKeyId: rzpKey,
+          enableCOD: !!cod,
+          enableGST: !!gst
+        });
+
+        store.showToast('Payment configuration saved successfully!');
+        reRenderCallback();
+      });
+    }
+
+    // Manual Verify Payment button for UPI/Pending orders
+    document.querySelectorAll('.verify-order-payment-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const orderId = btn.getAttribute('data-id');
+        if (confirm(`Confirm payment verification for Order #${orderId}?`)) {
+          store.markOrderPaid(orderId);
+          reRenderCallback();
+        }
+      });
     });
 
     // Create Admin button

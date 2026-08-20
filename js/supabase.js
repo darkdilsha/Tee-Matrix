@@ -306,6 +306,53 @@ export class SupabaseService {
       await supabase.from('payment_methods').upsert([row]);
     } catch (e) {}
   }
+
+  // 7. Orders Persistence & Sync
+  async saveOrder(order) {
+    try {
+      const row = {
+        id: order.id,
+        customer_name: order.customerName,
+        email: order.email,
+        phone: order.phone,
+        address: order.address,
+        items: order.items,
+        total: order.total,
+        payment_method: order.paymentMethod || 'UPI',
+        payment_status: order.paymentStatus || 'PENDING_VERIFICATION',
+        payment_details: order.paymentDetails || {},
+        status: order.status || 'PROCESSING',
+        date: order.date || new Date().toISOString()
+      };
+      const { error } = await supabase.from('orders').upsert([row]);
+      if (error) console.warn('Supabase save order warning:', error.message);
+    } catch (e) {
+      console.warn('Supabase save order error:', e);
+    }
+  }
+
+  async fetchOrders() {
+    try {
+      const { data, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+      if (!error && data && data.length > 0) {
+        return data.map(o => ({
+          id: o.id,
+          date: o.date || new Date(o.created_at).toLocaleDateString(),
+          customerName: o.customer_name,
+          email: o.email,
+          phone: o.phone,
+          address: o.address,
+          items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items,
+          total: Number(o.total),
+          paymentMethod: o.payment_method || 'UPI',
+          paymentStatus: o.payment_status || 'PAID',
+          paymentDetails: typeof o.payment_details === 'string' ? JSON.parse(o.payment_details) : (o.payment_details || {}),
+          status: o.status || 'CONFIRMED'
+        }));
+      }
+    } catch (e) {}
+    return null;
+  }
 }
 
 export const supabaseService = new SupabaseService();

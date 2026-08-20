@@ -703,7 +703,50 @@ class StoreService {
     }
   }
 
-  createOrder(shippingInfo) {
+  // Payment Configuration
+  getPaymentConfig() {
+    try {
+      const stored = localStorage.getItem('tm_payment_config');
+      if (stored) return JSON.parse(stored);
+    } catch (_) {}
+    return {
+      merchantUpiVpa: 'teematrix@okaxis',
+      merchantName: 'TEE MATRIX ATELIER',
+      razorpayKeyId: '',
+      enableCOD: true,
+      enableGST: false,
+      gstRate: 0.12
+    };
+  }
+
+  updatePaymentConfig(newConfig) {
+    const current = this.getPaymentConfig();
+    const updated = { ...current, ...newConfig };
+    localStorage.setItem('tm_payment_config', JSON.stringify(updated));
+    this.notify();
+    
+    // Sync with backend API if available
+    try {
+      fetch('/api/admin/payment-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated)
+      }).catch(() => {});
+    } catch (_) {}
+
+    return updated;
+  }
+
+  // Orders with Strict Per-Size Stock Verification and Atomic Deduction
+  getOrders() {
+    try {
+      return JSON.parse(localStorage.getItem('tm_orders')) || [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  createOrder(shippingInfo, paymentInfo = {}) {
     const cart = this.getCart();
     if (cart.length === 0) return { success: false, message: "Your cart is empty" };
 
@@ -725,6 +768,16 @@ class StoreService {
     });
 
     const totals = this.getCartTotal();
+    const config = this.getPaymentConfig();
+    const taxAmount = config.enableGST ? Math.round(totals.subtotal * (config.gstRate || 0.12)) : 0;
+    const finalTotal = totals.total + taxAmount;
+
+    const method = paymentInfo.method || 'UPI';
+    const paymentStatus = paymentInfo.status || (method === 'COD' ? 'COD_COLLECT' : (method === 'Razorpay' ? 'PAID' : 'PENDING_VERIFICATION'));
+    const orderStatus = paymentStatus === 'PAID' 
+      ? 'CONFIRMED (Processing Dispatch)' 
+      : (method === 'COD' ? 'CONFIRMED (Cash On Delivery)' : 'AWAITING_PAYMENT_VERIFICATION');
+
     const newOrder = {
       id: `TM-${Math.floor(1000 + Math.random() * 9000)}`,
       date: new Date().toISOString().split('T')[0],
@@ -735,15 +788,46 @@ class StoreService {
       items: [...cart],
       subtotal: totals.subtotal,
       shipping: totals.shipping,
-      total: totals.total,
-      status: "Processing (Online Dispatch)"
+      tax: taxAmount,
+      total: finalTotal,
+      paymentMethod: method,
+      paymentStatus: paymentStatus,
+      paymentDetails: paymentInfo.details || {},
+      status: orderStatus
     };
 
     const orders = this.getOrders();
     orders.unshift(newOrder);
     localStorage.setItem('tm_orders', JSON.stringify(orders));
     this.clearCart();
+    this.notify();
+
+    // Async sync to Supabase
+    supabaseService.saveOrder(newOrder);
+
     return { success: true, order: newOrder };
+  }
+
+  markOrderPaid(orderId) {
+    let target = null;
+    let orders = this.getOrders();
+    orders = orders.map(o => {
+      if (o.id === orderId) {
+        target = {
+          ...o,
+          paymentStatus: 'PAID',
+          status: 'CONFIRMED (Processing Dispatch)'
+        };
+        return target;
+      }
+      return o;
+    });
+    localStorage.setItem('tm_orders', JSON.stringify(orders));
+    this.notify();
+    if (target) {
+      supabaseService.saveOrder(target);
+      this.showToast(`Order #${orderId} marked as PAID & Confirmed`);
+    }
   }
 
   // Admin Accounts & Security Database
