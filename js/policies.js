@@ -91,8 +91,8 @@ export class PoliciesPage {
       { id: 'terms-and-conditions', name: 'Terms & Conditions', tag: 'USER AGREEMENT' },
       { id: 'privacy-policy', name: 'Privacy Policy', tag: 'DATA PROTECTION' },
       { id: 'shipping-policy', name: 'Shipping & Delivery', tag: 'DOMESTIC LOGISTICS' },
-      { id: 'refund-policy', name: 'Refund Policy', tag: 'PAYMENT SETTLEMENT' },
-      { id: 'return-policy', name: 'Return & Exchange', tag: '7-DAY ASSURANCE' }
+      { id: 'refund-policy', name: 'Refund Policy', tag: 'DEFECT & CANCELLATION' },
+      { id: 'return-policy', name: 'Return & Exchange', tag: 'ALL SALES FINAL' }
     ];
 
     return `
@@ -380,37 +380,36 @@ export class PoliciesPage {
     return `
       <section style="display: flex; flex-direction: column; gap: 1.8rem;">
         <div>
-          <h2 style="color: #fff; font-size: 1.25rem; margin-bottom: 0.6rem; font-family: var(--font-heading);">1. Transparent Refund Policy</h2>
+          <h2 style="color: #fff; font-size: 1.25rem; margin-bottom: 0.6rem; font-family: var(--font-heading);">1. Refund Policy Overview (All Sales Final)</h2>
           <p>
-            At <strong>Tee Matrix</strong>, we strive to ensure a hassle-free shopping experience. If you are not completely satisfied with your purchase, or if your order is canceled or returned under our Return Policy, we ensure transparent and prompt refund settlements.
+            At <strong>Tee Matrix</strong>, all product purchases are final. We do not issue refunds for change of mind, personal styling preferences, or customer sizing errors. Refunds are strictly reserved for verified transit damage, manufacturing defects, incorrect items received, or pre-dispatch order cancellations.
           </p>
         </div>
 
         <div>
-          <h2 style="color: #fff; font-size: 1.25rem; margin-bottom: 0.6rem; font-family: var(--font-heading);">2. Refund Eligibility Criteria</h2>
-          <p>Refunds are initiated in the following scenarios:</p>
+          <h2 style="color: #fff; font-size: 1.25rem; margin-bottom: 0.6rem; font-family: var(--font-heading);">2. Valid Refund Eligibility Criteria</h2>
+          <p>Refunds are initiated exclusively in the following scenarios:</p>
           <ul style="padding-left: 1.5rem; margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.35rem;">
-            <li>Approved returns received at our atelier within the 7-day window that pass our quality inspection.</li>
-            <li>Prepaid orders canceled prior to courier dispatch.</li>
-            <li>Orders that cannot be fulfilled due to inventory stock-outs or delivery address non-serviceability.</li>
-            <li>Verified defective or transit-damaged items where a replacement is unavailable or declined by the customer.</li>
+            <li><strong>Damaged, Defective, or Incorrect Product:</strong> When reported within 48 hours of delivery with photographic/video proof, and where a replacement cannot be provided or is declined.</li>
+            <li><strong>Pre-Dispatch Cancellation:</strong> Prepaid orders canceled before courier pickup and dispatch.</li>
+            <li><strong>Non-Fulfillment:</strong> Orders that cannot be fulfilled due to inventory stock depletion or courier non-serviceability.</li>
           </ul>
         </div>
 
         <div>
-          <h2 style="color: #fff; font-size: 1.25rem; margin-bottom: 0.6rem; font-family: var(--font-heading);">3. Refund Mode & Processing Timelines</h2>
+          <h2 style="color: #fff; font-size: 1.25rem; margin-bottom: 0.6rem; font-family: var(--font-heading);">3. Refund Modes & Settlement Timelines</h2>
           <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 1.5rem; border-radius: 8px; margin-top: 0.5rem;">
             <div style="display: flex; flex-direction: column; gap: 1rem;">
               <div>
                 <strong style="color: #fff; display: block; font-size: 0.95rem;">⚡ Prepaid Payments (UPI, NetBanking, Credit/Debit Cards)</strong>
                 <span style="color: var(--text-secondary); font-size: 0.85rem;">
-                  Refunds are credited directly back to the <strong>original payment source (UPI ID / Card / Bank Account)</strong> within <strong>5 to 7 business days</strong> following quality verification.
+                  Refunds are processed back to the <strong>original payment source (UPI ID / Card / Bank Account)</strong> within <strong>5 to 7 working days</strong> from the date of claim approval.
                 </span>
               </div>
               <div style="border-top: 1px solid rgba(255,255,255,0.08); padding-top: 0.75rem;">
                 <strong style="color: #fff; display: block; font-size: 0.95rem;">📦 Cash on Delivery (COD) Orders</strong>
                 <span style="color: var(--text-secondary); font-size: 0.85rem;">
-                  For COD returns, our support team will contact you to provide your verified Bank Account (IMPS/NEFT) or UPI VPA. Funds are transferred within <strong>3 to 5 business days</strong> of receiving details.
+                  For eligible COD claims, our support team will collect your verified Bank Account (IMPS/NEFT) or UPI VPA. Funds are transferred within <strong>3 to 5 working days</strong> of receiving details.
                 </span>
               </div>
             </div>
@@ -418,9 +417,9 @@ export class PoliciesPage {
         </div>
 
         <div>
-          <h2 style="color: #fff; font-size: 1.25rem; margin-bottom: 0.6rem; font-family: var(--font-heading);">4. Order Cancellations</h2>
+          <h2 style="color: #fff; font-size: 1.25rem; margin-bottom: 0.6rem; font-family: var(--font-heading);">4. Pre-Dispatch Order Cancellations</h2>
           <p>
-            You can request order cancellation before the parcel is dispatched by emailing <a href="mailto:teematrixsupport@gmail.com" style="color: var(--accent-gold); text-decoration: none;">teematrixsupport@gmail.com</a> or contacting our WhatsApp helpline (<a href="tel:+918593071292" style="color: #fff; text-decoration: none;">+91 8593071292</a>) with your Order ID (#TM-XXXX). Once dispatched, cancellation is not possible, but you may initiate a return upon delivery.
+            You can request order cancellation strictly before your parcel is dispatched from our atelier by emailing <a href="mailto:teematrixsupport@gmail.com" style="color: var(--accent-gold); text-decoration: none;">teematrixsupport@gmail.com</a> or contacting our WhatsApp helpline (<a href="tel:+918593071292" style="color: #fff; text-decoration: none;">+91 8593071292</a>) with your Order ID (#TM-XXXX). Once dispatched to the logistics partner, orders cannot be canceled or refunded.
           </p>
         </div>
       </section>
@@ -431,36 +430,41 @@ export class PoliciesPage {
     return `
       <section style="display: flex; flex-direction: column; gap: 1.8rem;">
         <div>
-          <h2 style="color: #fff; font-size: 1.25rem; margin-bottom: 0.6rem; font-family: var(--font-heading);">1. 7-Day Return & Exchange Assurance</h2>
+          <h2 style="color: #fff; font-size: 1.25rem; margin-bottom: 0.6rem; font-family: var(--font-heading);">1. Strict "No Return / No Exchange" Policy (All Sales Final)</h2>
           <p>
-            We offer a <strong>7-day return and exchange window</strong> from the date your parcel is marked as delivered by the courier. If your heavyweight t-shirt doesn't fit quite right or if you wish to exchange it for another size/color, we are here to assist.
+            At <strong>Tee Matrix</strong>, all sales are final. We maintain a strict <strong>No Return and No Exchange Policy</strong>. We do not accept returns or exchanges for change of mind, personal preference, or incorrect size selection by the customer.
+          </p>
+          <p style="margin-top: 0.5rem;">
+            Because our streetwear drops are produced in limited luxury atelier quantities with artisanal acid garment washes and custom oversized fits, we cannot re-stock or exchange items once dispatched.
           </p>
         </div>
 
         <div>
-          <h2 style="color: #fff; font-size: 1.25rem; margin-bottom: 0.6rem; font-family: var(--font-heading);">2. Conditions for Return / Exchange</h2>
-          <p>To qualify for a return or exchange, items must meet the following conditions:</p>
-          <ul style="padding-left: 1.5rem; margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.35rem;">
-            <li>Garment must be <strong>unused, unworn, unwashed</strong>, and free of stains, perfumes, or alterations.</li>
-            <li>All original brand tags, neck labels, and original protective atelier packaging must remain intact.</li>
-            <li>Return request must be raised within <strong>7 days</strong> of delivery.</li>
-          </ul>
+          <h2 style="color: #fff; font-size: 1.25rem; margin-bottom: 0.6rem; font-family: var(--font-heading);">2. Sizing Guidance & Official Size Chart</h2>
+          <p>
+            To ensure the perfect fit, customers are strongly advised to consult the <strong>Official Size Chart</strong> (Chest Width, Length, Shoulder Drop) detailed on each product page before placing an order.
+          </p>
+          <p style="margin-top: 0.5rem;">
+            If you have questions regarding fit, drape, or sizing, our customer support concierge is available via WhatsApp (<a href="tel:+918593071292" style="color: #fff; text-decoration: none;">+91 8593071292</a>) to provide sizing recommendations prior to purchase.
+          </p>
         </div>
 
         <div>
-          <h2 style="color: #fff; font-size: 1.25rem; margin-bottom: 0.6rem; font-family: var(--font-heading);">3. Step-by-Step Return & Pickup Process</h2>
+          <h2 style="color: #fff; font-size: 1.25rem; margin-bottom: 0.6rem; font-family: var(--font-heading);">3. Damaged, Defective, or Incorrect Product Protections</h2>
+          <p>
+            In the rare event that an item arrives damaged in transit, has a manufacturing defect, or if you received an incorrect product, we provide full resolution:
+          </p>
           <ol style="padding-left: 1.5rem; margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.5rem;">
-            <li><strong>Step 1 — Request:</strong> Email <a href="mailto:teematrixsupport@gmail.com" style="color: var(--accent-gold); text-decoration: none;">teematrixsupport@gmail.com</a> or message us on WhatsApp (<a href="tel:+918593071292" style="color: #fff; text-decoration: none;">+91 8593071292</a>) with your Order ID (#TM-XXXX), item photo, and reason for return or desired exchange size.</li>
-            <li><strong>Step 2 — Doorstep Reverse Pickup:</strong> Our logistics partner will arrive at your doorstep within <strong>24 to 48 hours</strong> to collect the package.</li>
-            <li><strong>Step 3 — Quality Verification:</strong> Once the parcel arrives at our Bangalore atelier, our quality team inspects the garment within 24 hours.</li>
-            <li><strong>Step 4 — Settlement:</strong> Your replacement size is dispatched immediately, or a full refund is initiated to your original payment method (5–7 working days).</li>
+            <li><strong>Notification Timeline:</strong> You must report the issue within <strong>48 hours of delivery</strong>.</li>
+            <li><strong>Contact Channel:</strong> Email <a href="mailto:teematrixsupport@gmail.com" style="color: var(--accent-gold); text-decoration: none;">teematrixsupport@gmail.com</a> or WhatsApp <a href="tel:+918593071292" style="color: #fff; text-decoration: none;">+91 8593071292</a> with your <strong>Order ID (#TM-XXXX)</strong>, description of the problem, and clear photos or an unboxing video demonstrating the defect/damage.</li>
+            <li><strong>Verification & Resolution:</strong> Upon review by our quality team, we will arrange a <strong>free replacement</strong> or initiate a <strong>100% full refund</strong> processed back to your original payment method within <strong>5 to 7 working days</strong>.</li>
           </ol>
         </div>
 
         <div>
-          <h2 style="color: #fff; font-size: 1.25rem; margin-bottom: 0.6rem; font-family: var(--font-heading);">4. Damaged or Defective Items Replacement</h2>
+          <h2 style="color: #fff; font-size: 1.25rem; margin-bottom: 0.6rem; font-family: var(--font-heading);">4. Non-Eligible Items</h2>
           <p>
-            In the rare event of receiving a manufacturing defect or damaged t-shirt, notify us within <strong>48 hours</strong> of delivery with unboxing photos/video. We will arrange an immediate free replacement or 100% full refund at zero extra cost to you.
+            Claims will not be accepted if the item has been washed, worn, altered, or if the report is submitted after the 48-hour post-delivery window.
           </p>
         </div>
       </section>
