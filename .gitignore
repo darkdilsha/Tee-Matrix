@@ -1,0 +1,21 @@
+# Environment & Secret Files
+.env
+.env.*
+!.env.example
+
+# Local Data & Server Runtime State
+data/
+
+# Dependencies & Node Modules
+node_modules/
+
+# Log files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# System & Agent Scratch Directories
+.system_generated/
+.tempmediaStorage/
+scratch/

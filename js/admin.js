@@ -186,14 +186,9 @@ export class AdminPanel {
           <button class="pill-btn ${this.activeTab === 'analytics' ? 'active' : ''}" id="tabAnalyticsBtn" style="padding: 0.8rem 1.8rem; font-size: 0.85rem;">
             ANALYTICS & PORTFOLIO
           </button>
-          ${store.isMasterAdmin() ? `
-            <button class="pill-btn ${this.activeTab === 'admin_users' ? 'active' : ''}" id="tabAdminUsersBtn" style="padding: 0.8rem 1.8rem; font-size: 0.85rem;">
-              ADMIN USERS & ROLES
-            </button>
-          ` : ''}
         </div>
 
-        ${this.activeTab === 'products' ? this.renderProductsTab(products) : this.activeTab === 'orders' ? this.renderOrdersTab(orders) : this.activeTab === 'payment_settings' ? this.renderPaymentSettingsTab() : this.activeTab === 'analytics' ? this.renderAnalyticsTab(products, orders) : (store.isMasterAdmin() ? this.renderAdminUsersTab() : this.renderProductsTab(products))}
+        ${this.activeTab === 'products' ? this.renderProductsTab(products) : this.activeTab === 'orders' ? this.renderOrdersTab(orders) : this.activeTab === 'payment_settings' ? this.renderPaymentSettingsTab() : this.renderAnalyticsTab(products, orders)}
       </div>
     `;
   }
@@ -319,14 +314,14 @@ export class AdminPanel {
                     <span style="display: block; font-weight: 700; color: #fff; font-size: 0.85rem;">
                       ${o.paymentMethod || 'UPI'}
                     </span>
-                    ${o.paymentDetails?.utr ? `
+                    ${(o.paymentDetails?.submittedUtr || o.paymentDetails?.utr) ? `
                       <span style="font-size: 0.7rem; font-family: monospace; color: var(--accent-gold); display: block;">
-                        UTR: ${o.paymentDetails.utr}
+                        UTR: ${o.paymentDetails.submittedUtr || o.paymentDetails.utr}
                       </span>
                     ` : ''}
                   </td>
                   <td>
-                    <span class="badge ${o.paymentStatus === 'PAID' ? 'badge-stock' : (o.paymentStatus === 'PENDING_VERIFICATION' ? 'badge-gold' : 'badge-silver')}" style="font-size: 0.7rem;">
+                    <span class="badge ${o.paymentStatus === 'PAID' ? 'badge-stock' : (o.paymentStatus === 'PENDING_VERIFICATION' ? 'badge-gold' : (o.paymentStatus === 'FAILED' ? 'badge-out' : 'badge-silver'))}" style="font-size: 0.7rem;">
                       ${o.paymentStatus || 'PENDING'}
                     </span>
                   </td>
@@ -339,18 +334,29 @@ export class AdminPanel {
                   </td>
                   <td style="color: #fff; font-weight: 700; font-size: 0.95rem;">₹${(o.total || 0).toLocaleString('en-IN')}</td>
                   <td>
-                    <span style="font-size: 0.78rem; color: ${o.paymentStatus === 'PAID' ? 'var(--accent-success)' : 'var(--text-muted)'};">
+                    <span style="font-size: 0.78rem; color: ${o.paymentStatus === 'PAID' ? 'var(--accent-success)' : (o.paymentStatus === 'FAILED' ? 'var(--accent-danger)' : 'var(--text-muted)')};">
                       ${o.status || 'Processing'}
                     </span>
                   </td>
                   <td>
                     ${o.paymentStatus === 'PENDING_VERIFICATION' ? `
-                      <button class="btn-primary verify-order-payment-btn" data-id="${o.id}" style="padding: 0.4rem 0.8rem; font-size: 0.7rem; background: #10b981; border-color: #10b981;">
-                        ✓ Confirm Paid
+                      <div style="display: flex; flex-direction: column; gap: 0.35rem;">
+                        <button class="btn-primary confirm-upi-order-btn" data-id="${o.id}" style="padding: 0.35rem 0.65rem; font-size: 0.7rem; background: #10b981; border-color: #10b981;">
+                          ✓ Confirm Paid
+                        </button>
+                        <button class="btn-secondary reject-upi-order-btn" data-id="${o.id}" style="padding: 0.3rem 0.6rem; font-size: 0.68rem; color: var(--accent-danger); border-color: rgba(239,68,68,0.4);">
+                          ✕ Reject UTR
+                        </button>
+                      </div>
+                    ` : (o.paymentStatus === 'COD_PENDING' ? `
+                      <button class="btn-primary confirm-cod-order-btn" data-id="${o.id}" style="padding: 0.35rem 0.65rem; font-size: 0.7rem; background: #3b82f6; border-color: #3b82f6;">
+                        ✓ Mark Delivered & Paid
                       </button>
+                    ` : (o.paymentStatus === 'FAILED' ? `
+                      <span style="font-size: 0.75rem; color: var(--accent-danger);">Payment Rejected</span>
                     ` : `
                       <span style="font-size: 0.75rem; color: var(--accent-success);">Verified ✓</span>
-                    `}
+                    `))}
                   </td>
                 </tr>
               `).join('')}
@@ -409,7 +415,7 @@ export class AdminPanel {
               <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem; font-weight: 600;">
                 PUBLIC RAZORPAY KEY ID
               </label>
-              <input type="text" id="adminRazorpayKeyId" class="input-field" value="${config.razorpayKeyId || ''}" placeholder="rzp_live_... or rzp_test_..." />
+              <input type="text" id="adminRazorpayKeyId" class="input-field" value="${config.razorpayKeyId || ''}" placeholder="rzp_live_..." />
               <span style="font-size: 0.7rem; color: var(--text-muted); display: block; margin-top: 0.3rem;">
                 Card & NetBanking tab is enabled automatically when this key is present. Secret key is kept safely on server.
               </span>
@@ -625,141 +631,6 @@ export class AdminPanel {
         </div>
       </div>
     `;
-  }
-
-  renderAdminUsersTab() {
-    const adminAccounts = store.getAdminAccounts();
-
-    return `
-      <div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
-          <div>
-            <h2 style="font-size: 1.4rem; color: #fff;">REGISTERED ADMINISTRATORS</h2>
-            <span style="font-size: 0.8rem; color: var(--text-muted);">Manage administrator credentials and add new admin accounts</span>
-          </div>
-          <button class="btn-primary" id="createAdminBtn" style="padding: 0.8rem 1.8rem; font-size: 0.75rem;">
-            + CREATE NEW ADMIN
-          </button>
-        </div>
-
-        <div style="overflow-x: auto;">
-          <table class="admin-table">
-            <thead>
-              <tr>
-                <th>Username</th>
-                <th>Administrator Name</th>
-                <th>Access Role</th>
-                <th>Created Date</th>
-                <th>Password</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${adminAccounts.map(a => `
-                <tr>
-                  <td><strong style="color: #fff; font-size: 0.95rem;">@${a.username}</strong></td>
-                  <td style="color: #fff;">${a.name}</td>
-                  <td>
-                    <span class="badge ${a.username === 'admin' ? 'badge-limited' : 'badge-stock'}">${a.role || 'Administrator'}</span>
-                  </td>
-                  <td style="color: var(--text-muted); font-size: 0.85rem;">${a.createdDate || '2026-08-10'}</td>
-                  <td style="color: var(--text-secondary); font-family: monospace;">••••••••</td>
-                  <td>
-                    ${a.username === 'admin' ? `
-                      <span style="font-size: 0.75rem; color: var(--text-muted);">Protected Master</span>
-                    ` : `
-                      <button class="btn-secondary delete-admin-btn" data-username="${a.username}" style="padding: 0.35rem 0.75rem; font-size: 0.7rem; color: var(--accent-danger); border-color: rgba(239,68,68,0.4);">
-                        REVOKE ACCESS
-                      </button>
-                    `}
-                  </td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    `;
-  }
-
-  openAddAdminModal(reRenderCallback) {
-    let modal = document.getElementById('addAdminModal');
-    if (!modal) {
-      modal = document.createElement('div');
-      modal.id = 'addAdminModal';
-      modal.className = 'modal-backdrop';
-      document.body.appendChild(modal);
-    }
-
-    modal.innerHTML = `
-      <div class="modal-content glass-panel" style="max-width: 480px; padding: 2.5rem; border: 1px solid var(--border-color); border-top: 3px solid var(--accent-gold);">
-        <button class="modal-close" id="closeAddAdminBtn">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-
-        <span class="section-tag" style="color: var(--accent-gold);">SECURITY PORTAL</span>
-        <h2 style="font-family: var(--font-heading); font-size: 1.6rem; color: #fff; margin-bottom: 0.5rem;">
-          CREATE NEW ADMIN ACCOUNT
-        </h2>
-        <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.5rem;">
-          New admin will get full access to manage inventory, products, orders, and analytics.
-        </p>
-
-        <form id="createAdminForm" style="display: flex; flex-direction: column; gap: 1.25rem;">
-          <div>
-            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem;">ADMIN USERNAME *</label>
-            <input type="text" id="newAdminUser" required class="input-field" placeholder="e.g. admin_username" />
-          </div>
-
-          <div>
-            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem;">FULL NAME *</label>
-            <input type="text" id="newAdminName" required class="input-field" placeholder="e.g. Admin Name" />
-          </div>
-
-          <div>
-            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem;">LOGIN PASSWORD *</label>
-            <input type="password" id="newAdminPass" required class="input-field" placeholder="Minimum 4 characters" />
-          </div>
-
-          <div id="createAdminErr" style="color: var(--accent-danger); font-size: 0.8rem; display: none;"></div>
-
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
-            <button type="button" class="btn-secondary" id="cancelAddAdminBtn">CANCEL</button>
-            <button type="submit" class="btn-primary">CREATE ADMIN ACCOUNT</button>
-          </div>
-        </form>
-      </div>
-    `;
-
-    setTimeout(() => modal.classList.add('active'), 10);
-
-    document.getElementById('closeAddAdminBtn')?.addEventListener('click', () => modal.classList.remove('active'));
-    document.getElementById('cancelAddAdminBtn')?.addEventListener('click', () => modal.classList.remove('active'));
-
-    const form = document.getElementById('createAdminForm');
-    if (form) {
-      form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const user = document.getElementById('newAdminUser').value.trim();
-        const name = document.getElementById('newAdminName').value.trim();
-        const pass = document.getElementById('newAdminPass').value;
-        const errEl = document.getElementById('createAdminErr');
-
-        const res = store.addAdminAccount(user, name, pass);
-        if (res.success) {
-          modal.classList.remove('active');
-          reRenderCallback();
-        } else {
-          if (errEl) {
-            errEl.innerText = res.message;
-            errEl.style.display = 'block';
-          }
-        }
-      });
-    }
   }
 
   openAddEditModal(product = null, reRenderCallback) {
@@ -1726,10 +1597,15 @@ export class AdminPanel {
 
         // Request SMS OTP via Supabase client
         const res = await supabaseService.sendSMSOTP(this.adminPhone);
-        if (res.isDevMode) {
-          store.showToast(res.message);
+        if (!res.success) {
+          if (errEl) {
+            errEl.innerText = res.message || "Failed to send OTP";
+            errEl.style.display = 'block';
+          }
+          return;
         }
 
+        store.showToast(res.message);
         this.loginStep = 2;
         reRenderCallback();
         this.startAdminTimer();
@@ -1826,26 +1702,19 @@ export class AdminPanel {
       reRenderCallback();
     });
 
-    document.getElementById('tabAdminUsersBtn')?.addEventListener('click', () => {
-      this.activeTab = 'admin_users';
-      reRenderCallback();
-    });
-
     // Payment Config Form Submit
     const paymentForm = document.getElementById('paymentConfigForm');
     if (paymentForm) {
-      paymentForm.addEventListener('submit', (e) => {
+      paymentForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const upi = document.getElementById('adminMerchantUpi')?.value.trim();
         const name = document.getElementById('adminMerchantName')?.value.trim();
-        const rzpKey = document.getElementById('adminRazorpayKeyId')?.value.trim();
         const cod = document.getElementById('adminEnableCod')?.checked;
         const gst = document.getElementById('adminEnableGst')?.checked;
 
-        store.updatePaymentConfig({
+        await store.updatePaymentConfig({
           merchantUpiVpa: upi,
           merchantName: name,
-          razorpayKeyId: rzpKey,
           enableCOD: !!cod,
           enableGST: !!gst
         });
@@ -1855,29 +1724,73 @@ export class AdminPanel {
       });
     }
 
-    // Manual Verify Payment button for UPI/Pending orders
-    document.querySelectorAll('.verify-order-payment-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
+    // Admin UPI / COD Payment Confirmation
+    document.querySelectorAll('.confirm-upi-order-btn, .confirm-cod-order-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
         const orderId = btn.getAttribute('data-id');
-        if (confirm(`Confirm payment verification for Order #${orderId}?`)) {
-          store.markOrderPaid(orderId);
-          reRenderCallback();
+        if (confirm(`Confirm payment & mark Order #${orderId} as PAID? This will decrement product stock in database.`)) {
+          const token = await supabaseService.getAccessToken();
+          if (!token) {
+            store.showToast('Admin session expired. Please re-authenticate.', 'error');
+            return;
+          }
+
+          try {
+            const res = await fetch('/api/admin/confirm-upi-payment', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({ order_id: orderId })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+              store.showToast(data.message || 'Payment confirmed and stock decremented!');
+              await store.syncFromSupabase();
+              reRenderCallback();
+            } else {
+              store.showToast(data.error || 'Failed to confirm payment', 'error');
+            }
+          } catch (err) {
+            store.showToast('Network error while confirming payment', 'error');
+          }
         }
       });
     });
 
-    // Create Admin button
-    document.getElementById('createAdminBtn')?.addEventListener('click', () => {
-      this.openAddAdminModal(reRenderCallback);
-    });
+    // Admin Reject Fake UTR
+    document.querySelectorAll('.reject-upi-order-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const orderId = btn.getAttribute('data-id');
+        const reason = prompt(`Enter rejection reason for Order #${orderId} (e.g., UTR not found in bank statement):`, 'Invalid UTR / Payment Not Received');
+        if (reason !== null) {
+          const token = await supabaseService.getAccessToken();
+          if (!token) {
+            store.showToast('Admin session expired. Please re-authenticate.', 'error');
+            return;
+          }
 
-    // Delete Admin button
-    document.querySelectorAll('.delete-admin-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const username = btn.getAttribute('data-username');
-        if (confirm(`Revoke admin access for @${username}?`)) {
-          store.deleteAdminAccount(username);
-          reRenderCallback();
+          try {
+            const res = await fetch('/api/admin/reject-payment', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({ order_id: orderId, reason })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+              store.showToast(data.message || 'Order marked as FAILED');
+              await store.syncFromSupabase();
+              reRenderCallback();
+            } else {
+              store.showToast(data.error || 'Failed to reject payment', 'error');
+            }
+          } catch (err) {
+            store.showToast('Network error while rejecting payment', 'error');
+          }
         }
       });
     });

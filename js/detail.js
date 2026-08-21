@@ -1,8 +1,7 @@
-// TEE MATRIX - Product Detail Modal Component
-
 import { store } from './store.js';
 import { authModal } from './authModal.js';
 import { checkoutModal } from './cart.js';
+import { supabaseService } from './supabase.js';
 
 export class ProductDetailModal {
   constructor() {
@@ -407,7 +406,7 @@ export class ProductDetailModal {
     });
 
     // Buy Now (Direct Single-Item Checkout - Bypasses Global Cart)
-    document.getElementById('detailBuyNowBtn')?.addEventListener('click', (e) => {
+    document.getElementById('detailBuyNowBtn')?.addEventListener('click', async (e) => {
       if (e) e.preventDefault();
 
       // 1. Validate that a size is selected
@@ -432,76 +431,121 @@ export class ProductDetailModal {
         return;
       }
 
-      // 3. Calculate single item amount in paise
+      const token = await supabaseService.getAccessToken();
+      if (!token) {
+        authModal.open('login', 'Please log in with mobile OTP to proceed with Instant Buy', () => {
+          document.getElementById('detailBuyNowBtn')?.click();
+        });
+        return;
+      }
+
       const qty = this.qty || 1;
-      const singleItemPrice = product.price || 0;
-      const subtotal = singleItemPrice * qty;
-      const shipping = subtotal >= 2499 ? 0 : 99;
-      const config = store.getPaymentConfig();
-      const tax = config.enableGST ? Math.round(subtotal * (config.gstRate || 0.12)) : 0;
-      const finalTotal = subtotal + shipping + tax;
-      const amountInPaise = Math.round(finalTotal * 100);
-
-      console.log("Initiating checkout with amount:", amountInPaise);
-
       const customer = store.getCurrentCustomer() || store.getCurrentUser();
       const prefillName = customer?.name || "Customer";
       const prefillEmail = customer?.email || "teematrixsupport@gmail.com";
       const prefillPhone = customer?.phone || "8593071292";
 
-      // 4. Configure Razorpay options
-      const options = {
-        key: "rzp_test_TSNOwRfNZPmZmS",
-        amount: amountInPaise,
-        currency: "INR",
-        name: "Tee Matrix",
-        description: `Order Payment - ${product.name} (Size: ${this.selectedSize})`,
-        image: product.imagePrimary || "assets/hero_banner.jpg",
-        prefill: {
-          name: prefillName,
-          email: prefillEmail,
-          contact: prefillPhone
-        },
-        theme: {
-          color: "#000000"
-        },
-        handler: (response) => {
-          console.log("Payment success:", response);
-          if (response && response.razorpay_payment_id) {
-            // Direct single-item order creation bypassing global cart
-            const result = store.createDirectOrder(product, this.selectedSize, qty, {
-              name: prefillName,
-              email: prefillEmail,
-              phone: prefillPhone,
-              address: "Direct Doorstep Express Delivery",
-              city: "Bengaluru",
-              zip: "560095"
-            }, {
-              method: "Razorpay (Buy Now)",
-              status: "PAID",
-              details: {
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_order_id: response.razorpay_order_id || "",
-                razorpay_signature: response.razorpay_signature || ""
-              }
-            });
-
-            this.close();
-            if (result && result.success) {
-              checkoutModal.showOrderConfirmation(result.order);
-              store.showToast("Payment successful! Order confirmed.");
-            }
-          }
-        },
-        modal: {
-          ondismiss: () => {
-            console.log("Razorpay checkout modal dismissed by user.");
-          }
-        }
+      const shippingInfo = {
+        name: prefillName,
+        email: prefillEmail,
+        phone: prefillPhone,
+        address: "Direct Doorstep Express Delivery",
+        city: "Bengaluru",
+        zip: "560095"
       };
 
-      const rzp = new window.Razorpay(options);
-      rzp.open();
+      try {
+        // Create server-side order with authoritative DB prices
+        const createRes = await fetch('/api/create-razorpay-order', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            items: [{ id: product.id, size: this.selectedSize, qty }],
+            shippingInfo
+          })
+        });
+
+        const orderData = await createRes.json();
+        if (!createRes.ok || !orderData.success) {
+          throw new Error(orderData.error || 'Failed to initiate Razorpay checkout');
+        }
+
+        const options = {
+          key: orderData.key_id,
+          amount: orderData.amount_paise,
+          currency: orderData.currency || "INR",
+          name: "Tee Matrix",
+          description: `Order #${orderData.tm_order_id} - ${product.name} (${this.selectedSize})`,
+          order_id: orderData.order_id,
+          image: product.imagePrimary || "assets/hero_banner.jpg",
+          prefill: {
+            name: prefillName,
+            email: prefillEmail,
+            contact: prefillPhone
+          },
+          theme: {
+            color: "#000000"
+          },
+          handler: async (response) => {
+            try {
+              const verifyRes = await fetch('/api/verify-razorpay-payment', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature
+                })
+              });
+              const verifyData = await verifyRes.json();
+              if (verifyRes.ok && verifyData.success) {
+                this.close();
+                checkoutModal.showOrderConfirmation({
+                  id: orderData.tm_order_id,
+                  customerName: prefillName,
+                  phone: prefillPhone,
+                  email: prefillEmail,
+                  address: shippingInfo.address,
+                  items: [{
+                    name: product.name,
+                    size: this.selectedSize,
+                    qty: qty,
+                    price: product.price
+                  }],
+                  subtotal: orderData.amount,
+                  shipping: 0,
+                  total: orderData.amount,
+                  paymentMethod: 'Razorpay (Buy Now)',
+                  paymentStatus: 'PAID',
+                  paymentDetails: { razorpay_payment_id: response.razorpay_payment_id }
+                });
+                store.showToast("Payment verified successfully! Order confirmed.");
+              } else {
+                throw new Error(verifyData.error || 'Payment signature verification failed');
+              }
+            } catch (vErr) {
+              store.showToast(vErr.message, 'error');
+            }
+          },
+          modal: {
+            ondismiss: () => {
+              console.log("Razorpay checkout modal dismissed by user.");
+            }
+          }
+        };
+
+        const rzp = new window.Razorpay(options);
+        rzp.open();
+      } catch (err) {
+        console.error("Razorpay checkout error:", err);
+        store.showToast(err.message || "Could not launch Razorpay checkout", 'error');
+      }
     });
 
     // Related products click

@@ -6,7 +6,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_9pvBeEruDCaGN7tYTY1-JA_Y13NJ-o_';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Authorised Admin Numbers Whitelist (fallback cache & live table check)
+// Authorised Admin Numbers Whitelist (UI Hint Only)
 export const AUTHORIZED_ADMIN_NUMBERS = [
   '+918593071292',
   '+91 8593071292',
@@ -14,10 +14,6 @@ export const AUTHORIZED_ADMIN_NUMBERS = [
 ];
 
 export class SupabaseService {
-  constructor() {
-    this.activeOTPStore = new Map(); // Dev fallback OTP store
-  }
-
   // Format phone number to E.164 standard (+91XXXXXXXXXX)
   formatPhone(phone) {
     if (!phone) return '';
@@ -32,7 +28,17 @@ export class SupabaseService {
     return cleaned;
   }
 
-  // 1. Send SMS OTP (Phone Auth)
+  // Get current active session access token for Bearer headers
+  async getAccessToken() {
+    try {
+      const { data } = await supabase.auth.getSession();
+      return data?.session?.access_token || null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // 1. Send SMS OTP (Phone Auth - Real Supabase Gateway)
   async sendSMSOTP(rawPhone) {
     const phone = this.formatPhone(rawPhone);
     try {
@@ -40,26 +46,11 @@ export class SupabaseService {
         phone: phone
       });
       if (error) {
-        console.warn('Supabase Auth warning:', error.message);
-        // Dev / Demo OTP mode if SMS gateway is not yet linked in Supabase dashboard
-        const devOTP = '123456';
-        this.activeOTPStore.set(phone, devOTP);
-        return { 
-          success: true, 
-          isDevMode: true, 
-          message: `OTP sent to ${phone} (Demo Code: 123456)` 
-        };
+        return { success: false, message: error.message };
       }
       return { success: true, message: `OTP sent successfully to ${phone}` };
     } catch (err) {
-      // Fallback mode
-      const devOTP = '123456';
-      this.activeOTPStore.set(phone, devOTP);
-      return { 
-        success: true, 
-        isDevMode: true, 
-        message: `OTP sent to ${phone} (Demo Code: 123456)` 
-      };
+      return { success: false, message: err.message || 'Failed to send OTP' };
     }
   }
 
@@ -75,50 +66,41 @@ export class SupabaseService {
         type: 'sms'
       });
 
-      if (!error && data?.session) {
-        return { success: true, user: data.user, phone };
+      if (error) {
+        return { success: false, message: error.message };
       }
+
+      if (data?.session) {
+        return { success: true, user: data.user, session: data.session, phone };
+      }
+      return { success: false, message: 'Could not establish authenticated session' };
     } catch (e) {
-      // Continue to fallback check
+      return { success: false, message: e.message || 'OTP verification failed' };
     }
-
-    // Dev Fallback check
-    const expected = this.activeOTPStore.get(phone) || '123456';
-    if (cleanToken === expected || cleanToken === '123456') {
-      return { success: true, phone, isDevMode: true };
-    }
-
-    return { success: false, message: 'Invalid 6-digit OTP code' };
   }
 
-  // 3. Verify Admin Access against admin_numbers table
+  // 3. Verify Admin Access via Server-Side Session Verification
   async verifyAdminNumber(rawPhone) {
     const phone = this.formatPhone(rawPhone);
-    const cleanedDigits = phone.replace(/\D/g, '');
-
-    // Check pre-configured owner number
-    const isHardcodedAdmin = AUTHORIZED_ADMIN_NUMBERS.some(n => n.replace(/\D/g, '') === cleanedDigits);
-    if (isHardcodedAdmin) {
-      return { success: true, role: 'Owner Super Admin', phone };
+    const token = await this.getAccessToken();
+    if (!token) {
+      return { success: false, message: 'Authentication required. Please sign in via OTP.' };
     }
 
     try {
-      const { data, error } = await supabase
-        .from('admin_numbers')
-        .select('*')
-        .or(`phone.eq.${phone},phone.eq.${rawPhone}`);
-
-      if (!error && data && data.length > 0) {
-        return { success: true, role: data[0].role || 'Administrator', phone };
+      const res = await fetch('/api/admin/verify-session', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        return { success: true, role: data.role || 'Super Admin', phone: data.phone || phone };
       }
-    } catch (e) {
-      console.warn('Database admin check warning:', e);
+      return { success: false, message: data.error || 'Access denied: caller is not an authorized administrator.' };
+    } catch (err) {
+      return { success: false, message: 'Could not verify admin credentials with server' };
     }
-
-    return { 
-      success: false, 
-      message: `The mobile number (${phone}) is not authorized for Admin Access` 
-    };
   }
 
   // 4. Products Table Operations
@@ -307,30 +289,7 @@ export class SupabaseService {
     } catch (e) {}
   }
 
-  // 7. Orders Persistence & Sync
-  async saveOrder(order) {
-    try {
-      const row = {
-        id: order.id,
-        customer_name: order.customerName,
-        email: order.email,
-        phone: order.phone,
-        address: order.address,
-        items: order.items,
-        total: order.total,
-        payment_method: order.paymentMethod || 'UPI',
-        payment_status: order.paymentStatus || 'PENDING_VERIFICATION',
-        payment_details: order.paymentDetails || {},
-        status: order.status || 'PROCESSING',
-        date: order.date || new Date().toISOString()
-      };
-      const { error } = await supabase.from('orders').upsert([row]);
-      if (error) console.warn('Supabase save order warning:', error.message);
-    } catch (e) {
-      console.warn('Supabase save order error:', e);
-    }
-  }
-
+  // 7. Orders Read Operations (Client-Side Read Only)
   async fetchOrders() {
     try {
       const { data, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
@@ -340,12 +299,16 @@ export class SupabaseService {
           date: o.date || new Date(o.created_at).toLocaleDateString(),
           customerName: o.customer_name,
           email: o.email,
-          phone: o.phone,
+          phone: o.phone || o.phone_number,
+          phoneNumber: o.phone_number,
           address: o.address,
           items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items,
+          subtotal: Number(o.subtotal || 0),
+          shipping: Number(o.shipping || 0),
+          tax: Number(o.tax || 0),
           total: Number(o.total),
           paymentMethod: o.payment_method || 'UPI',
-          paymentStatus: o.payment_status || 'PAID',
+          paymentStatus: o.payment_status || 'PENDING_VERIFICATION',
           paymentDetails: typeof o.payment_details === 'string' ? JSON.parse(o.payment_details) : (o.payment_details || {}),
           status: o.status || 'CONFIRMED'
         }));

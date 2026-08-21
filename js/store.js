@@ -712,32 +712,50 @@ class StoreService {
     return {
       merchantUpiVpa: 'teematrix@okaxis',
       merchantName: 'Tee Matrix',
-      razorpayKeyId: 'rzp_test_TSNOwRfNZPmZmS',
       enableCOD: true,
       enableGST: false,
       gstRate: 0.12
     };
   }
 
-  updatePaymentConfig(newConfig) {
+  async fetchPaymentConfigFromServer() {
+    try {
+      const res = await fetch('/api/payment-config');
+      if (res.ok) {
+        const config = await res.json();
+        localStorage.setItem('tm_payment_config', JSON.stringify(config));
+        this.notify();
+        return config;
+      }
+    } catch (_) {}
+    return this.getPaymentConfig();
+  }
+
+  async updatePaymentConfig(newConfig) {
     const current = this.getPaymentConfig();
     const updated = { ...current, ...newConfig };
     localStorage.setItem('tm_payment_config', JSON.stringify(updated));
     this.notify();
     
-    // Sync with backend API if available
+    // Sync with backend API using Bearer token
     try {
-      fetch('/api/admin/payment-config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updated)
-      }).catch(() => {});
+      const token = await supabaseService.getAccessToken();
+      if (token) {
+        await fetch('/api/admin/payment-config', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(updated)
+        });
+      }
     } catch (_) {}
 
     return updated;
   }
 
-  // Orders with Strict Per-Size Stock Verification and Atomic Deduction
+  // Orders with Strict Server-Side Validation
   getOrders() {
     try {
       return JSON.parse(localStorage.getItem('tm_orders')) || [];
@@ -746,218 +764,99 @@ class StoreService {
     }
   }
 
-  createOrder(shippingInfo, paymentInfo = {}) {
+  async createOrder(shippingInfo, paymentInfo = {}) {
     const cart = this.getCart();
     if (cart.length === 0) return { success: false, message: "Your cart is empty" };
 
-    // 1. Rigorous Pre-Order Stock Validation across all items & sizes
-    for (const item of cart) {
-      const available = this.getSizeStock(item.id, item.size);
-      if (item.qty > available) {
-        const msg = available === 0 
-          ? `"${item.name}" (Size: ${item.size}) is now Out of Stock. Please update your cart.`
-          : `Only ${available} available in size ${item.size} for "${item.name}".`;
+    const token = await supabaseService.getAccessToken();
+    if (!token) {
+      this.showToast("Please log in with mobile OTP to place your order", 'error');
+      return { success: false, message: "Authentication required" };
+    }
+
+    try {
+      const items = cart.map(i => ({ id: i.id, size: i.size, qty: i.qty }));
+      const res = await fetch('/api/create-order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          items,
+          shippingInfo,
+          paymentMethod: paymentInfo.method || 'UPI',
+          paymentDetails: paymentInfo.details || {}
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        const msg = data.error || "Failed to create order on server";
         this.showToast(msg, 'error');
         return { success: false, message: msg };
       }
-    }
 
-    // 2. Decrease Stock strictly for the exact purchased sizes
-    cart.forEach(item => {
-      this.decreaseSizeStock(item.id, item.size, item.qty);
-    });
+      const newOrder = data.order;
+      const orders = this.getOrders();
+      orders.unshift(newOrder);
+      localStorage.setItem('tm_orders', JSON.stringify(orders));
+      this.clearCart();
+      this.notify();
 
-    const totals = this.getCartTotal();
-    const config = this.getPaymentConfig();
-    const taxAmount = config.enableGST ? Math.round(totals.subtotal * (config.gstRate || 0.12)) : 0;
-    const finalTotal = totals.total + taxAmount;
-
-    const method = paymentInfo.method || 'UPI';
-    const paymentStatus = paymentInfo.status || (method === 'COD' ? 'COD_COLLECT' : (method === 'Razorpay' ? 'PAID' : 'PENDING_VERIFICATION'));
-    const orderStatus = paymentStatus === 'PAID' 
-      ? 'CONFIRMED (Processing Dispatch)' 
-      : (method === 'COD' ? 'CONFIRMED (Cash On Delivery)' : 'AWAITING_PAYMENT_VERIFICATION');
-
-    const newOrder = {
-      id: `TM-${Math.floor(1000 + Math.random() * 9000)}`,
-      date: new Date().toISOString().split('T')[0],
-      customerName: shippingInfo.name,
-      email: shippingInfo.email,
-      phone: shippingInfo.phone,
-      address: `${shippingInfo.address}, ${shippingInfo.city}, ${shippingInfo.zip}`,
-      items: [...cart],
-      subtotal: totals.subtotal,
-      shipping: totals.shipping,
-      tax: taxAmount,
-      total: finalTotal,
-      paymentMethod: method,
-      paymentStatus: paymentStatus,
-      paymentDetails: paymentInfo.details || {},
-      status: orderStatus
-    };
-
-    const orders = this.getOrders();
-    orders.unshift(newOrder);
-    localStorage.setItem('tm_orders', JSON.stringify(orders));
-    this.clearCart();
-    this.notify();
-
-    // Async sync to Supabase
-    supabaseService.saveOrder(newOrder);
-
-    return { success: true, order: newOrder };
-  }
-
-  // Direct Single-Item Order Creation for "Buy Now" (bypasses and preserves global cart)
-  createDirectOrder(product, size, qty = 1, shippingInfo = {}, paymentInfo = {}) {
-    const available = this.getSizeStock(product.id, size);
-    if (qty > available) {
-      const msg = available === 0 
-        ? `"${product.name}" (Size: ${size}) is currently Out of Stock.`
-        : `Only ${available} available in size ${size} for "${product.name}".`;
+      return { success: true, order: newOrder };
+    } catch (err) {
+      console.error("Order creation error:", err);
+      const msg = err.message || "Failed to place order";
       this.showToast(msg, 'error');
       return { success: false, message: msg };
     }
-
-    // Deduct stock for the purchased size
-    this.decreaseSizeStock(product.id, size, qty);
-
-    const subtotal = (product.price || 0) * qty;
-    const shipping = subtotal >= 2499 ? 0 : 99;
-    const config = this.getPaymentConfig();
-    const taxAmount = config.enableGST ? Math.round(subtotal * (config.gstRate || 0.12)) : 0;
-    const finalTotal = subtotal + shipping + taxAmount;
-
-    const method = paymentInfo.method || 'Razorpay (Buy Now)';
-    const paymentStatus = paymentInfo.status || 'PAID';
-    const orderStatus = 'CONFIRMED (Processing Dispatch)';
-
-    const item = {
-      id: product.id,
-      name: product.name,
-      price: product.price,
-      size: size,
-      qty: qty,
-      image: product.imagePrimary || (product.images && product.images[0]) || '',
-      gsm: product.gsm || '320'
-    };
-
-    const newOrder = {
-      id: `TM-${Math.floor(1000 + Math.random() * 9000)}`,
-      date: new Date().toISOString().split('T')[0],
-      customerName: shippingInfo.name || 'Customer',
-      email: shippingInfo.email || 'teematrixsupport@gmail.com',
-      phone: shippingInfo.phone || '8593071292',
-      address: shippingInfo.address ? `${shippingInfo.address}, ${shippingInfo.city || ''}, ${shippingInfo.zip || ''}` : 'Direct Express Doorstep Delivery, Bangalore - 560095',
-      items: [item],
-      subtotal: subtotal,
-      shipping: shipping,
-      tax: taxAmount,
-      total: finalTotal,
-      paymentMethod: method,
-      paymentStatus: paymentStatus,
-      paymentDetails: paymentInfo.details || {},
-      status: orderStatus
-    };
-
-    const orders = this.getOrders();
-    orders.unshift(newOrder);
-    localStorage.setItem('tm_orders', JSON.stringify(orders));
-    this.notify();
-
-    // Async sync to Supabase
-    supabaseService.saveOrder(newOrder);
-
-    return { success: true, order: newOrder };
   }
 
-  markOrderPaid(orderId) {
-    let target = null;
-    let orders = this.getOrders();
-    orders = orders.map(o => {
-      if (o.id === orderId) {
-        target = {
-          ...o,
-          paymentStatus: 'PAID',
-          status: 'CONFIRMED (Processing Dispatch)'
-        };
-        return target;
-      }
-      return o;
-    });
-    localStorage.setItem('tm_orders', JSON.stringify(orders));
-    this.notify();
-    if (target) {
-      supabaseService.saveOrder(target);
-      this.showToast(`Order #${orderId} marked as PAID & Confirmed`);
+  // Direct Single-Item Order Creation for "Buy Now" (bypasses and preserves global cart)
+  async createDirectOrder(product, size, qty = 1, shippingInfo = {}, paymentInfo = {}) {
+    const token = await supabaseService.getAccessToken();
+    if (!token) {
+      this.showToast("Please log in with mobile OTP to place your order", 'error');
+      return { success: false, message: "Authentication required" };
     }
-  }
 
-  // Admin Accounts & Security Database
-  getAdminAccounts() {
     try {
-      return JSON.parse(localStorage.getItem('tm_admin_accounts')) || [
-        { username: "admin", name: "Master Administrator", password: "admin123", role: "Super Admin", createdDate: "2026-08-10" }
-      ];
-    } catch (e) {
-      return [{ username: "admin", name: "Master Administrator", password: "admin123", role: "Super Admin", createdDate: "2026-08-10" }];
+      const items = [{ id: product.id, size: size, qty: qty }];
+      const res = await fetch('/api/create-order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          items,
+          shippingInfo,
+          paymentMethod: paymentInfo.method || 'UPI',
+          paymentDetails: paymentInfo.details || {}
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        const msg = data.error || "Failed to create order on server";
+        this.showToast(msg, 'error');
+        return { success: false, message: msg };
+      }
+
+      const newOrder = data.order;
+      const orders = this.getOrders();
+      orders.unshift(newOrder);
+      localStorage.setItem('tm_orders', JSON.stringify(orders));
+      this.notify();
+
+      return { success: true, order: newOrder };
+    } catch (err) {
+      console.error("Direct order creation error:", err);
+      const msg = err.message || "Failed to place order";
+      this.showToast(msg, 'error');
+      return { success: false, message: msg };
     }
-  }
-
-  verifyAdminLogin(username, password) {
-    const admins = this.getAdminAccounts();
-    const match = admins.find(a => a.username.toLowerCase() === username.trim().toLowerCase() && a.password === password);
-    if (match) {
-      localStorage.setItem('tm_logged_admin', match.username.toLowerCase());
-      return { success: true, admin: match };
-    }
-    return { success: false, message: "Invalid admin username or password" };
-  }
-
-  isMasterAdmin() {
-    const loggedUser = localStorage.getItem('tm_logged_admin');
-    return loggedUser === 'admin';
-  }
-
-  addAdminAccount(username, name, password) {
-    if (!this.isMasterAdmin()) {
-      return { success: false, message: "Only the Master Administrator (@admin) can create new admin accounts" };
-    }
-
-    const admins = this.getAdminAccounts();
-    const existing = admins.find(a => a.username.toLowerCase() === username.trim().toLowerCase());
-    
-    if (existing) {
-      return { success: false, message: "An admin account with this username already exists" };
-    }
-
-    const newAdmin = {
-      username: username.trim(),
-      name: name.trim() || username.trim(),
-      password: password,
-      role: "Administrator",
-      createdDate: new Date().toISOString().split('T')[0]
-    };
-
-    admins.push(newAdmin);
-    localStorage.setItem('tm_admin_accounts', JSON.stringify(admins));
-    this.notify();
-    this.showToast(`Admin account "${newAdmin.username}" created successfully`);
-    return { success: true, admin: newAdmin };
-  }
-
-  deleteAdminAccount(username) {
-    if (!this.isMasterAdmin()) {
-      return { success: false, message: "Only the Master Administrator (@admin) can revoke admin access" };
-    }
-    if (username.toLowerCase() === 'admin') {
-      return { success: false, message: "Master super admin account cannot be deleted" };
-    }
-    const admins = this.getAdminAccounts().filter(a => a.username.toLowerCase() !== username.toLowerCase());
-    localStorage.setItem('tm_admin_accounts', JSON.stringify(admins));
-    this.notify();
-    this.showToast(`Admin account "${username}" removed`);
-    return { success: true };
   }
 
   // Customer Authentication & Accounts

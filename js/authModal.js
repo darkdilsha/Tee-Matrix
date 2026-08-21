@@ -163,10 +163,15 @@ export class AuthModal {
         
         // Request SMS OTP via Supabase client
         const res = await supabaseService.sendSMSOTP(this.phoneNumber);
-        if (res.isDevMode) {
-          store.showToast(res.message);
+        if (!res.success) {
+          if (errEl) {
+            errEl.innerText = res.message || "Failed to send OTP. Please check your number.";
+            errEl.style.display = 'block';
+          }
+          return;
         }
 
+        store.showToast(res.message);
         this.step = 2;
         this.render();
         this.startTimer();

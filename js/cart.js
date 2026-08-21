@@ -1,7 +1,6 @@
-// TEE MATRIX - Cart Drawer & Multi-Step Checkout Controller
-
 import { store } from './store.js';
 import { authModal } from './authModal.js';
+import { supabaseService } from './supabase.js';
 
 export class CartDrawer {
   constructor() {
@@ -573,8 +572,8 @@ export class CheckoutModal {
       this.render();
     });
 
-    // Step 2: Confirm UPI Payment with UTR
-    document.getElementById('confirmUpiBtn')?.addEventListener('click', () => {
+    // Step 2: Confirm UPI Transfer & Register UTR
+    document.getElementById('confirmUpiBtn')?.addEventListener('click', async () => {
       const utrInput = document.getElementById('upiUtrInput');
       const utr = utrInput ? utrInput.value.trim() : '';
 
@@ -587,22 +586,38 @@ export class CheckoutModal {
       this.isProcessingPayment = true;
       this.render();
 
-      setTimeout(() => {
-        const result = store.createOrder(this.shippingData, {
-          method: 'UPI',
-          status: 'PENDING_VERIFICATION',
-          details: { utr: utr }
-        });
+      const result = await store.createOrder(this.shippingData, {
+        method: 'UPI',
+        status: 'PENDING_VERIFICATION',
+        details: { submittedUtr: utr }
+      });
+
+      if (result && result.success) {
+        const token = await supabaseService.getAccessToken();
+        if (token) {
+          try {
+            await fetch('/api/submit-upi-utr', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                order_id: result.order.id,
+                utr: utr
+              })
+            });
+          } catch (_) {}
+        }
 
         this.isProcessingPayment = false;
-        if (result && result.success) {
-          this.completedOrder = result.order;
-          this.step = 3;
-          this.render();
-        } else {
-          this.render();
-        }
-      }, 600);
+        this.completedOrder = result.order;
+        this.step = 3;
+        this.render();
+      } else {
+        this.isProcessingPayment = false;
+        this.render();
+      }
     });
 
     // Step 2: Pay via Razorpay Hosted Modal (Standard Checkout)
@@ -620,31 +635,48 @@ export class CheckoutModal {
         return;
       }
 
+      const token = await supabaseService.getAccessToken();
+      if (!token) {
+        authModal.open('login', 'Please log in with mobile OTP before completing checkout', () => {
+          this.render();
+        });
+        return;
+      }
+
       this.isProcessingPayment = true;
       this.render();
 
       try {
-        const config = store.getPaymentConfig();
-        const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 1)), 0);
-        const shippingFee = (subtotal >= 2499 || subtotal === 0) ? 0 : 99;
-        const tax = config.enableGST ? Math.round(subtotal * (config.gstRate || 0.12)) : 0;
-        const finalPayable = subtotal + shippingFee + tax;
-        const amountInPaise = Math.round(finalPayable * 100);
-        const razorpayKey = "rzp_test_TSNOwRfNZPmZmS";
+        // 1. Create server-side Razorpay order with authoritative DB prices & stock
+        const items = cart.map(i => ({ id: i.id, size: i.size, qty: i.qty }));
+        const createRes = await fetch('/api/create-razorpay-order', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            items,
+            shippingInfo: this.shippingData
+          })
+        });
 
-        console.log("Initiating checkout with amount:", amountInPaise);
+        const orderData = await createRes.json();
+        if (!createRes.ok || !orderData.success) {
+          throw new Error(orderData.error || 'Failed to initiate Razorpay checkout');
+        }
 
         const prefillName = this.shippingData?.name || store.getCurrentCustomer()?.name || "Customer";
         const prefillEmail = this.shippingData?.email || store.getCurrentCustomer()?.email || "teematrixsupport@gmail.com";
         const prefillPhone = this.shippingData?.phone || store.getCurrentCustomer()?.phone || "8593071292";
 
-        // Configure official Razorpay Standard Checkout Options
         const options = {
-          key: razorpayKey,
-          amount: amountInPaise,
-          currency: 'INR',
+          key: orderData.key_id,
+          amount: orderData.amount_paise,
+          currency: orderData.currency || 'INR',
           name: 'Tee Matrix',
-          description: `Order Payment (${cart.length} item${cart.length > 1 ? 's' : ''})`,
+          description: `Order #${orderData.tm_order_id}`,
+          order_id: orderData.order_id,
           image: 'assets/hero_banner.jpg',
           prefill: {
             name: prefillName,
@@ -654,38 +686,52 @@ export class CheckoutModal {
           theme: {
             color: '#000000'
           },
-          handler: (response) => {
-            console.log("Payment success:", response);
-            // On payment success (razorpay_payment_id returned)
-            if (response && response.razorpay_payment_id) {
-              // Create order in store, clear cart, and record stock deduction
-              const result = store.createOrder(this.shippingData, {
-                method: 'Razorpay',
-                status: 'PAID',
-                details: {
+          handler: async (response) => {
+            try {
+              const verifyRes = await fetch('/api/verify-razorpay-payment', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                  razorpay_order_id: response.razorpay_order_id,
                   razorpay_payment_id: response.razorpay_payment_id,
-                  razorpay_order_id: response.razorpay_order_id || '',
-                  razorpay_signature: response.razorpay_signature || ''
-                }
+                  razorpay_signature: response.razorpay_signature
+                })
               });
-
-              this.isProcessingPayment = false;
-              if (result && result.success) {
-                this.completedOrder = result.order;
-                this.step = 3; // Display Order Confirmation Screen
+              const verifyData = await verifyRes.json();
+              if (verifyRes.ok && verifyData.success) {
+                store.clearCart();
+                this.completedOrder = {
+                  id: orderData.tm_order_id,
+                  customerName: prefillName,
+                  phone: prefillPhone,
+                  email: prefillEmail,
+                  address: `${this.shippingData?.address || ''}, ${this.shippingData?.city || ''}, ${this.shippingData?.zip || ''}`,
+                  items: [...cart],
+                  subtotal: orderData.amount,
+                  shipping: 0,
+                  total: orderData.amount,
+                  paymentMethod: 'Razorpay',
+                  paymentStatus: 'PAID',
+                  paymentDetails: { razorpay_payment_id: response.razorpay_payment_id }
+                };
+                this.isProcessingPayment = false;
+                this.step = 3;
                 this.render();
-                store.showToast('Payment successful! Order confirmed.');
+                store.showToast('Payment verified successfully! Order confirmed.');
               } else {
-                this.render();
+                throw new Error(verifyData.error || 'Payment signature verification failed');
               }
-            } else {
+            } catch (vErr) {
+              store.showToast(vErr.message, 'error');
               this.isProcessingPayment = false;
               this.render();
             }
           },
           modal: {
             ondismiss: () => {
-              console.log("Razorpay checkout modal dismissed by user.");
               this.isProcessingPayment = false;
               this.render();
             }
@@ -696,33 +742,32 @@ export class CheckoutModal {
         rzp.open();
       } catch (err) {
         console.error('Razorpay checkout error:', err);
-        store.showToast('Could not launch Razorpay checkout', 'error');
+        store.showToast(err.message || 'Could not launch Razorpay checkout', 'error');
         this.isProcessingPayment = false;
         this.render();
       }
     });
 
     // Step 2: Confirm Cash on Delivery Order
-    document.getElementById('confirmCodBtn')?.addEventListener('click', () => {
+    document.getElementById('confirmCodBtn')?.addEventListener('click', async () => {
       this.isProcessingPayment = true;
       this.render();
 
-      setTimeout(() => {
-        const result = store.createOrder(this.shippingData, {
-          method: 'COD',
-          status: 'COD_COLLECT',
-          details: {}
-        });
+      const result = await store.createOrder(this.shippingData, {
+        method: 'COD',
+        status: 'COD_PENDING',
+        details: {}
+      });
 
-        this.isProcessingPayment = false;
-        if (result && result.success) {
-          this.completedOrder = result.order;
-          this.step = 3;
-          this.render();
-        } else {
-          this.render();
-        }
-      }, 500);
+      this.isProcessingPayment = false;
+      if (result && result.success) {
+        this.completedOrder = result.order;
+        this.step = 3;
+        this.render();
+        store.showToast('COD Order placed successfully!');
+      } else {
+        this.render();
+      }
     });
 
     // Step 3: Print Invoice Receipt
