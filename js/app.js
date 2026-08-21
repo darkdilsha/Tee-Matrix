@@ -7,6 +7,7 @@ import { AdminPanel } from './admin.js';
 import { authModal } from './authModal.js';
 import { accountModal } from './accountModal.js';
 import { fashionMotion } from './fashionMotion.js';
+import { PoliciesPage } from './policies.js';
 
 class App {
   constructor() {
@@ -15,13 +16,14 @@ class App {
     }
     window.scrollTo(0, 0);
 
-    this.currentView = 'landing'; // 'landing' | 'shop' | 'admin'
+    this.currentView = 'landing'; // 'landing' | 'shop' | 'new-arrivals' | 'admin' | policy types
     this.landingPage = new LandingPage(() => this.setView('shop'));
     this.catalogPage = new CatalogPage();
     this.productDetailModal = new ProductDetailModal();
     this.cartDrawer = new CartDrawer();
     this.checkoutModal = new CheckoutModal();
     this.adminPanel = new AdminPanel();
+    this.policiesPage = new PoliciesPage(() => this.setView('shop'));
 
     this.init();
   }
@@ -63,16 +65,28 @@ class App {
   }
 
   handleRoute() {
-    const hash = window.location.hash.replace('#', '');
-    if (hash === 'shop') {
+    const rawPath = window.location.pathname.replace(/^\//, '').toLowerCase();
+    const hash = window.location.hash.replace('#', '').toLowerCase();
+
+    const policyRoutes = ['terms-and-conditions', 'privacy-policy', 'shipping-policy', 'refund-policy', 'return-policy'];
+
+    if (policyRoutes.includes(hash)) {
+      this.currentView = hash;
+      this.render();
+      fashionMotion.scrollTo(0, { immediate: true });
+    } else if (policyRoutes.includes(rawPath)) {
+      this.currentView = rawPath;
+      this.render();
+      fashionMotion.scrollTo(0, { immediate: true });
+    } else if (hash === 'shop' || rawPath === 'shop') {
       this.currentView = 'shop';
       this.render();
       fashionMotion.scrollTo(0, { immediate: true });
-    } else if (hash === 'new-arrivals') {
+    } else if (hash === 'new-arrivals' || rawPath === 'new-arrivals') {
       this.currentView = 'new-arrivals';
       this.render();
       fashionMotion.scrollTo(0, { immediate: true });
-    } else if (hash === 'admin') {
+    } else if (hash === 'admin' || rawPath === 'admin') {
       this.currentView = 'admin';
       this.render();
       fashionMotion.scrollTo(0, { immediate: true });
@@ -205,14 +219,24 @@ class App {
           </button>
         </div>
 
-        <div style="padding: 2rem 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; flex-grow: 1;">
+        <div style="padding: 2rem 1.5rem; display: flex; flex-direction: column; gap: 1.2rem; flex-grow: 1; overflow-y: auto;">
           <a href="#landing" class="drawer-link" id="drawerHome" style="font-family: var(--font-heading); font-size: 1.1rem; font-weight: 700; color: #fff; text-decoration: none;">HOME</a>
           <a href="#shop" class="drawer-link" id="drawerShop" style="font-family: var(--font-heading); font-size: 1.1rem; font-weight: 700; color: #fff; text-decoration: none;">STORE CATALOG</a>
           <a href="#new-arrivals" class="drawer-link" id="drawerNewArrivals" style="font-family: var(--font-heading); font-size: 1.1rem; font-weight: 700; color: #fff; text-decoration: none;">NEW ARRIVALS</a>
           <a href="#account" class="drawer-link" id="drawerAccount" style="font-family: var(--font-heading); font-size: 1.1rem; font-weight: 700; color: #fff; text-decoration: none;">MY ACCOUNT</a>
           <a href="#orders" class="drawer-link" id="drawerOrders" style="font-family: var(--font-heading); font-size: 1.1rem; font-weight: 700; color: #fff; text-decoration: none;">MY ORDERS</a>
           <a href="#wishlist" class="drawer-link" id="drawerWishlist" style="font-family: var(--font-heading); font-size: 1.1rem; font-weight: 700; color: #fff; text-decoration: none;">WISHLIST</a>
-          <button class="drawer-link" id="drawerHelp" style="font-family: var(--font-heading); font-size: 1.1rem; font-weight: 700; color: var(--text-secondary); text-align: left; background: none; border: none; cursor: pointer;">HELP & CONTACT</button>
+          
+          <div style="border-top: 1px solid rgba(255,255,255,0.08); padding-top: 1rem; margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.8rem;">
+            <span style="font-size: 0.7rem; letter-spacing: 0.15em; color: var(--accent-gold); text-transform: uppercase; font-weight: 700;">Legal & Policies</span>
+            <a href="#terms-and-conditions" class="drawer-link drawer-policy-link" style="font-size: 0.85rem; color: var(--text-secondary); text-decoration: none;">Terms & Conditions</a>
+            <a href="#privacy-policy" class="drawer-link drawer-policy-link" style="font-size: 0.85rem; color: var(--text-secondary); text-decoration: none;">Privacy Policy</a>
+            <a href="#shipping-policy" class="drawer-link drawer-policy-link" style="font-size: 0.85rem; color: var(--text-secondary); text-decoration: none;">Shipping & Delivery</a>
+            <a href="#refund-policy" class="drawer-link drawer-policy-link" style="font-size: 0.85rem; color: var(--text-secondary); text-decoration: none;">Refund Policy</a>
+            <a href="#return-policy" class="drawer-link drawer-policy-link" style="font-size: 0.85rem; color: var(--text-secondary); text-decoration: none;">Return & Exchange</a>
+          </div>
+
+          <button class="drawer-link" id="drawerHelp" style="font-family: var(--font-heading); font-size: 0.95rem; font-weight: 700; color: var(--text-secondary); text-align: left; background: none; border: none; cursor: pointer; padding-top: 0.5rem;">HELP & CONTACT</button>
         </div>
 
         <div style="padding: 1.5rem; border-top: 1px solid var(--border-color);">
@@ -295,6 +319,17 @@ class App {
       store.showToast("Digital Concierge: Contact support at support@teematrix.io");
     });
 
+    document.querySelectorAll('.drawer-policy-link').forEach(link => {
+      link.addEventListener('click', (e) => {
+        const href = link.getAttribute('href');
+        if (href && href.startsWith('#')) {
+          drawer?.classList.remove('active');
+          const route = href.replace('#', '');
+          this.setView(route);
+        }
+      });
+    });
+
     document.getElementById('drawerLoginBtn')?.addEventListener('click', () => {
       drawer?.classList.remove('active');
       authModal.open('login');
@@ -375,6 +410,8 @@ class App {
     const mainContent = document.getElementById('mainContent');
     if (!mainContent) return;
 
+    const policyRoutes = ['terms-and-conditions', 'privacy-policy', 'shipping-policy', 'refund-policy', 'return-policy'];
+
     if (this.currentView === 'landing') {
       mainContent.innerHTML = this.landingPage.render();
       this.landingPage.attachEvents();
@@ -387,6 +424,9 @@ class App {
     } else if (this.currentView === 'admin') {
       mainContent.innerHTML = this.adminPanel.render();
       this.adminPanel.attachEvents(() => this.renderView());
+    } else if (policyRoutes.includes(this.currentView)) {
+      mainContent.innerHTML = this.policiesPage.render(this.currentView);
+      this.policiesPage.attachEvents();
     }
   }
 }

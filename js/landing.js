@@ -3,6 +3,7 @@
 import { store } from './store.js';
 import { authModal } from './authModal.js';
 import { fashionMotion } from './fashionMotion.js';
+import { renderSiteFooter } from './policies.js';
 
 export class LandingPage {
   constructor(onShopClick) {
@@ -173,52 +174,8 @@ export class LandingPage {
           </div>
         </section>
 
-        <!-- Minimalist Footer -->
-        <footer class="footer">
-          <div class="container">
-            <div class="footer-grid">
-              <div>
-                <h3 class="brand-font" style="font-size: 1.4rem; color: #fff; margin-bottom: 1rem;">TEE MATRIX</h3>
-                <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.6; max-width: 280px;">
-                  Online-only luxury streetwear brand specializing in heavyweight boxy fit t-shirts.
-                </p>
-              </div>
-
-              <div>
-                <h4 style="font-size: 0.85rem; letter-spacing: 0.15em; text-transform: uppercase; color: #fff; margin-bottom: 1rem;">NAVIGATION</h4>
-                <ul style="list-style: none; display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.85rem;">
-                  <li><a href="#" class="footer-link" id="footShop">All Products</a></li>
-                  <li><a href="#new-arrivals" class="footer-link">New Arrivals</a></li>
-                  <li><a href="#story" class="footer-link">Brand Story</a></li>
-                </ul>
-              </div>
-
-              <div>
-                <h4 style="font-size: 0.85rem; letter-spacing: 0.15em; text-transform: uppercase; color: #fff; margin-bottom: 1rem;">CUSTOMER CARE</h4>
-                <ul style="list-style: none; display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.85rem; color: var(--text-secondary);">
-                  <li>Direct Doorstep Delivery</li>
-                  <li>Track Online Order</li>
-                  <li>Returns & Exchange Policy</li>
-                  <li>Size & Drape Guide</li>
-                </ul>
-              </div>
-
-              <div>
-                <h4 style="font-size: 0.85rem; letter-spacing: 0.15em; text-transform: uppercase; color: #fff; margin-bottom: 1rem;">CONNECT</h4>
-                <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-                  <a href="https://instagram.com" target="_blank" style="color: #fff; background: rgba(255,255,255,0.05); padding: 0.6rem; border: 1px solid var(--border-color);">Instagram</a>
-                  <a href="https://wa.me" target="_blank" style="color: #fff; background: rgba(255,255,255,0.05); padding: 0.6rem; border: 1px solid var(--border-color);">WhatsApp</a>
-                </div>
-                <span style="font-size: 0.75rem; color: var(--text-muted);">24/7 Digital Concierge Support</span>
-              </div>
-            </div>
-
-            <div class="footer-bottom">
-              <span>&copy; 2026 TEE MATRIX ONLINE STOREFRONT. ALL RIGHTS RESERVED.</span>
-              <span>DIRECT-TO-CONSUMER ONLINE EXCLUSIVE</span>
-            </div>
-          </div>
-        </footer>
+        <!-- Global Site Footer -->
+        ${renderSiteFooter()}
       </div>
     `;
   }

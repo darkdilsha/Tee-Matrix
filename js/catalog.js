@@ -2,6 +2,7 @@
 
 import { store } from './store.js';
 import { authModal } from './authModal.js';
+import { renderSiteFooter } from './policies.js';
 
 export class CatalogPage {
   constructor() {
@@ -174,6 +175,9 @@ export class CatalogPage {
 
         <!-- Filter Side Sheet / Bottom Drawer Container -->
         <div id="filterSheetContainer"></div>
+
+        <!-- Global Site Footer -->
+        ${renderSiteFooter()}
       </div>
     `;
   }
