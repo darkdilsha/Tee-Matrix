@@ -50,11 +50,11 @@ export function renderSiteFooter() {
             <div style="font-size: 0.85rem; color: var(--text-secondary); display: flex; flex-direction: column; gap: 0.6rem; line-height: 1.5;">
               <div>
                 <span style="font-size: 0.72rem; color: var(--text-muted); display: block; text-transform: uppercase;">Customer Support Email</span>
-                <a href="mailto:support@teematrix.in" style="color: var(--accent-gold); font-weight: 600; text-decoration: none;">support@teematrix.in</a>
+                <a href="mailto:teematrixsupport@gmail.com" style="color: var(--accent-gold); font-weight: 600; text-decoration: none;">teematrixsupport@gmail.com</a>
               </div>
               <div>
                 <span style="font-size: 0.72rem; color: var(--text-muted); display: block; text-transform: uppercase;">Customer Helpline / WhatsApp</span>
-                <span style="color: #fff; font-weight: 600;">+91 98765 43210</span>
+                <a href="tel:+918593071292" style="color: #fff; font-weight: 600; text-decoration: none;">+91 8593071292</a>
                 <span style="font-size: 0.72rem; color: var(--text-muted); display: block;">(Mon – Sat, 10:00 AM – 7:00 PM IST)</span>
               </div>
               <div>
@@ -148,11 +148,11 @@ export class PoliciesPage {
               </div>
               <div>
                 <span style="color: var(--text-muted); display: block; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em;">Customer Support Email</span>
-                <a href="mailto:support@teematrix.in" style="color: var(--accent-gold); font-weight: 600; text-decoration: none;">support@teematrix.in</a>
+                <a href="mailto:teematrixsupport@gmail.com" style="color: var(--accent-gold); font-weight: 600; text-decoration: none;">teematrixsupport@gmail.com</a>
               </div>
               <div>
                 <span style="color: var(--text-muted); display: block; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em;">Helpline / WhatsApp</span>
-                <strong style="color: #fff;">+91 98765 43210</strong> (10 AM – 7 PM IST)
+                <a href="tel:+918593071292" style="color: #fff; font-weight: 600; text-decoration: none;">+91 8593071292</a> (10 AM – 7 PM IST)
               </div>
               <div>
                 <span style="color: var(--text-muted); display: block; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em;">Operating Atelier Hub</span>
@@ -319,7 +319,7 @@ export class PoliciesPage {
           </p>
           <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 1rem; border-radius: 6px; margin-top: 0.5rem;">
             <div><strong>Grievance Officer:</strong> Customer Relations Team, Tee Matrix</div>
-            <div><strong>Email:</strong> <a href="mailto:support@teematrix.in" style="color: var(--accent-gold); text-decoration: none;">support@teematrix.in</a></div>
+            <div><strong>Email:</strong> <a href="mailto:teematrixsupport@gmail.com" style="color: var(--accent-gold); text-decoration: none;">teematrixsupport@gmail.com</a></div>
             <div><strong>Address:</strong> Koramangala 5th Block, Bangalore, Karnataka - 560095, India</div>
           </div>
         </div>
@@ -369,7 +369,7 @@ export class PoliciesPage {
         <div>
           <h2 style="color: #fff; font-size: 1.25rem; margin-bottom: 0.6rem; font-family: var(--font-heading);">5. Transit Damage & Delivery Inspection</h2>
           <p>
-            If you notice that the outer parcel packaging is visibly tampered with or damaged at the time of delivery, please do not accept the package or document photos/video before accepting. Report any damaged items within <strong>48 hours</strong> to <a href="mailto:support@teematrix.in" style="color: var(--accent-gold); text-decoration: none;">support@teematrix.in</a> for immediate priority replacement.
+            If you notice that the outer parcel packaging is visibly tampered with or damaged at the time of delivery, please do not accept the package or document photos/video before accepting. Report any damaged items within <strong>48 hours</strong> to <a href="mailto:teematrixsupport@gmail.com" style="color: var(--accent-gold); text-decoration: none;">teematrixsupport@gmail.com</a> for immediate priority replacement.
           </p>
         </div>
       </section>
@@ -420,7 +420,7 @@ export class PoliciesPage {
         <div>
           <h2 style="color: #fff; font-size: 1.25rem; margin-bottom: 0.6rem; font-family: var(--font-heading);">4. Order Cancellations</h2>
           <p>
-            You can request order cancellation before the parcel is dispatched by emailing <a href="mailto:support@teematrix.in" style="color: var(--accent-gold); text-decoration: none;">support@teematrix.in</a> or contacting our WhatsApp helpline with your Order ID (#TM-XXXX). Once dispatched, cancellation is not possible, but you may initiate a return upon delivery.
+            You can request order cancellation before the parcel is dispatched by emailing <a href="mailto:teematrixsupport@gmail.com" style="color: var(--accent-gold); text-decoration: none;">teematrixsupport@gmail.com</a> or contacting our WhatsApp helpline (<a href="tel:+918593071292" style="color: #fff; text-decoration: none;">+91 8593071292</a>) with your Order ID (#TM-XXXX). Once dispatched, cancellation is not possible, but you may initiate a return upon delivery.
           </p>
         </div>
       </section>
@@ -450,7 +450,7 @@ export class PoliciesPage {
         <div>
           <h2 style="color: #fff; font-size: 1.25rem; margin-bottom: 0.6rem; font-family: var(--font-heading);">3. Step-by-Step Return & Pickup Process</h2>
           <ol style="padding-left: 1.5rem; margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.5rem;">
-            <li><strong>Step 1 — Request:</strong> Email <a href="mailto:support@teematrix.in" style="color: var(--accent-gold); text-decoration: none;">support@teematrix.in</a> or message us on WhatsApp with your Order ID (#TM-XXXX), item photo, and reason for return or desired exchange size.</li>
+            <li><strong>Step 1 — Request:</strong> Email <a href="mailto:teematrixsupport@gmail.com" style="color: var(--accent-gold); text-decoration: none;">teematrixsupport@gmail.com</a> or message us on WhatsApp (<a href="tel:+918593071292" style="color: #fff; text-decoration: none;">+91 8593071292</a>) with your Order ID (#TM-XXXX), item photo, and reason for return or desired exchange size.</li>
             <li><strong>Step 2 — Doorstep Reverse Pickup:</strong> Our logistics partner will arrive at your doorstep within <strong>24 to 48 hours</strong> to collect the package.</li>
             <li><strong>Step 3 — Quality Verification:</strong> Once the parcel arrives at our Bangalore atelier, our quality team inspects the garment within 24 hours.</li>
             <li><strong>Step 4 — Settlement:</strong> Your replacement size is dispatched immediately, or a full refund is initiated to your original payment method (5–7 working days).</li>

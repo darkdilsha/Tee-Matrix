@@ -316,7 +316,7 @@ class App {
 
     document.getElementById('drawerHelp')?.addEventListener('click', () => {
       drawer?.classList.remove('active');
-      store.showToast("Digital Concierge: Contact support at support@teematrix.io");
+      store.showToast("Digital Concierge: Contact teematrixsupport@gmail.com | +91 8593071292");
     });
 
     document.querySelectorAll('.drawer-policy-link').forEach(link => {
