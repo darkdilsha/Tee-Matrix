@@ -2,6 +2,7 @@
 
 import { store } from './store.js';
 import { authModal } from './authModal.js';
+import { checkoutModal } from './cart.js';
 
 export class ProductDetailModal {
   constructor() {
@@ -405,33 +406,102 @@ export class ProductDetailModal {
       }
     });
 
-    // Buy Now
-    document.getElementById('detailBuyNowBtn')?.addEventListener('click', () => {
+    // Buy Now (Direct Single-Item Checkout - Bypasses Global Cart)
+    document.getElementById('detailBuyNowBtn')?.addEventListener('click', (e) => {
+      if (e) e.preventDefault();
+
+      // 1. Validate that a size is selected
       if (!this.selectedSize) {
-        store.showToast("Please select an available size", 'error');
+        store.showToast("Please select a size first", 'error');
+        alert("Please select a size first before proceeding with Buy Now.");
         return;
       }
-      const available = product.sizeStock?.[this.selectedSize] ?? 0;
+
+      const available = product.sizeStock?.[this.selectedSize] !== undefined 
+        ? product.sizeStock[this.selectedSize] 
+        : (product.stockQty || 0);
+
       if (available <= 0) {
         store.showToast(`Size ${this.selectedSize} is currently Out of Stock`, 'error');
         return;
       }
 
-      if (!store.isCustomerLoggedIn()) {
-        authModal.open('login', 'Please verify mobile OTP to proceed with Instant Buy', () => {
-          const added = store.addToCart(product.id, this.selectedSize, this.qty);
-          if (added) {
-            this.close();
-            window.dispatchEvent(new CustomEvent('openCheckout'));
-          }
-        });
-      } else {
-        const added = store.addToCart(product.id, this.selectedSize, this.qty);
-        if (added) {
-          this.close();
-          window.dispatchEvent(new CustomEvent('openCheckout'));
-        }
+      // 2. Check Razorpay SDK availability
+      if (typeof window.Razorpay === 'undefined') {
+        alert("Razorpay SDK is loading. Please try again in a moment.");
+        return;
       }
+
+      // 3. Calculate single item amount in paise
+      const qty = this.qty || 1;
+      const singleItemPrice = product.price || 0;
+      const subtotal = singleItemPrice * qty;
+      const shipping = subtotal >= 2499 ? 0 : 99;
+      const config = store.getPaymentConfig();
+      const tax = config.enableGST ? Math.round(subtotal * (config.gstRate || 0.12)) : 0;
+      const finalTotal = subtotal + shipping + tax;
+      const amountInPaise = Math.round(finalTotal * 100);
+
+      console.log("Initiating checkout with amount:", amountInPaise);
+
+      const customer = store.getCurrentCustomer() || store.getCurrentUser();
+      const prefillName = customer?.name || "Customer";
+      const prefillEmail = customer?.email || "teematrixsupport@gmail.com";
+      const prefillPhone = customer?.phone || "8593071292";
+
+      // 4. Configure Razorpay options
+      const options = {
+        key: "rzp_test_TSNOwRfNZPmZmS",
+        amount: amountInPaise,
+        currency: "INR",
+        name: "Tee Matrix",
+        description: `Order Payment - ${product.name} (Size: ${this.selectedSize})`,
+        image: product.imagePrimary || "assets/hero_banner.jpg",
+        prefill: {
+          name: prefillName,
+          email: prefillEmail,
+          contact: prefillPhone
+        },
+        theme: {
+          color: "#000000"
+        },
+        handler: (response) => {
+          console.log("Payment success:", response);
+          if (response && response.razorpay_payment_id) {
+            // Direct single-item order creation bypassing global cart
+            const result = store.createDirectOrder(product, this.selectedSize, qty, {
+              name: prefillName,
+              email: prefillEmail,
+              phone: prefillPhone,
+              address: "Direct Doorstep Express Delivery",
+              city: "Bengaluru",
+              zip: "560095"
+            }, {
+              method: "Razorpay (Buy Now)",
+              status: "PAID",
+              details: {
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_order_id: response.razorpay_order_id || "",
+                razorpay_signature: response.razorpay_signature || ""
+              }
+            });
+
+            this.close();
+            if (result && result.success) {
+              checkoutModal.showOrderConfirmation(result.order);
+              store.showToast("Payment successful! Order confirmed.");
+            }
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            console.log("Razorpay checkout modal dismissed by user.");
+          }
+        }
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
     });
 
     // Related products click

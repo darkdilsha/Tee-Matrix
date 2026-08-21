@@ -2,7 +2,7 @@ import { store } from './store.js';
 import { LandingPage } from './landing.js';
 import { CatalogPage } from './catalog.js';
 import { ProductDetailModal } from './detail.js';
-import { CartDrawer, CheckoutModal } from './cart.js';
+import { CartDrawer, CheckoutModal, cartDrawer, checkoutModal } from './cart.js';
 import { AdminPanel } from './admin.js';
 import { authModal } from './authModal.js';
 import { accountModal } from './accountModal.js';
@@ -20,8 +20,8 @@ class App {
     this.landingPage = new LandingPage(() => this.setView('shop'));
     this.catalogPage = new CatalogPage();
     this.productDetailModal = new ProductDetailModal();
-    this.cartDrawer = new CartDrawer();
-    this.checkoutModal = new CheckoutModal();
+    this.cartDrawer = cartDrawer;
+    this.checkoutModal = checkoutModal;
     this.adminPanel = new AdminPanel();
     this.policiesPage = new PoliciesPage(() => this.setView('shop'));
 

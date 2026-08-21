@@ -226,6 +226,12 @@ export class CheckoutModal {
     this.render();
   }
 
+  showOrderConfirmation(order) {
+    this.completedOrder = order;
+    this.step = 3;
+    this.render();
+  }
+
   close() {
     const el = document.getElementById('checkoutModalBackdrop');
     if (el) {
@@ -600,71 +606,58 @@ export class CheckoutModal {
     });
 
     // Step 2: Pay via Razorpay Hosted Modal (Standard Checkout)
-    document.getElementById('payRazorpayBtn')?.addEventListener('click', async () => {
+    document.getElementById('payRazorpayBtn')?.addEventListener('click', async (e) => {
+      if (e) e.preventDefault();
+
+      const cart = store.getCart();
+      if (cart.length === 0) {
+        store.showToast("Your cart is empty", 'error');
+        return;
+      }
+
+      if (typeof window.Razorpay === 'undefined') {
+        alert("Razorpay SDK is loading. Please try again in a moment.");
+        return;
+      }
+
       this.isProcessingPayment = true;
       this.render();
 
       try {
-        const cart = store.getCart();
         const config = store.getPaymentConfig();
         const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 1)), 0);
         const shippingFee = (subtotal >= 2499 || subtotal === 0) ? 0 : 99;
         const tax = config.enableGST ? Math.round(subtotal * (config.gstRate || 0.12)) : 0;
         const finalPayable = subtotal + shippingFee + tax;
         const amountInPaise = Math.round(finalPayable * 100);
-        const razorpayKey = config.razorpayKeyId || 'rzp_test_TSNOwRfNZPmZmS';
+        const razorpayKey = "rzp_test_TSNOwRfNZPmZmS";
 
-        // 1. Try server-side Order creation if backend is available
-        let serverOrderId = null;
-        try {
-          const createRes = await fetch('/api/create-razorpay-order', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              items: cart,
-              shippingInfo: this.shippingData
-            })
-          });
-          const orderData = await createRes.json();
-          if (orderData.success && orderData.order_id) {
-            serverOrderId = orderData.order_id;
-          }
-        } catch (_) {}
+        console.log("Initiating checkout with amount:", amountInPaise);
 
-        // 2. Configure official Razorpay Standard Checkout Options
+        const prefillName = this.shippingData?.name || store.getCurrentCustomer()?.name || "Customer";
+        const prefillEmail = this.shippingData?.email || store.getCurrentCustomer()?.email || "teematrixsupport@gmail.com";
+        const prefillPhone = this.shippingData?.phone || store.getCurrentCustomer()?.phone || "8593071292";
+
+        // Configure official Razorpay Standard Checkout Options
         const options = {
           key: razorpayKey,
           amount: amountInPaise,
           currency: 'INR',
           name: 'Tee Matrix',
-          description: 'Order Payment',
+          description: `Order Payment (${cart.length} item${cart.length > 1 ? 's' : ''})`,
           image: 'assets/hero_banner.jpg',
           prefill: {
-            name: this.shippingData?.name || '',
-            email: this.shippingData?.email || 'teematrixsupport@gmail.com',
-            contact: this.shippingData?.phone || ''
+            name: prefillName,
+            email: prefillEmail,
+            contact: prefillPhone
           },
           theme: {
             color: '#000000'
           },
-          handler: async (response) => {
-            // 3. On payment success (razorpay_payment_id returned)
+          handler: (response) => {
+            console.log("Payment success:", response);
+            // On payment success (razorpay_payment_id returned)
             if (response && response.razorpay_payment_id) {
-              // Server signature verification fallback check
-              if (response.razorpay_signature && response.razorpay_order_id) {
-                try {
-                  await fetch('/api/verify-razorpay-payment', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      razorpay_order_id: response.razorpay_order_id,
-                      razorpay_payment_id: response.razorpay_payment_id,
-                      razorpay_signature: response.razorpay_signature
-                    })
-                  }).catch(() => {});
-                } catch (_) {}
-              }
-
               // Create order in store, clear cart, and record stock deduction
               const result = store.createOrder(this.shippingData, {
                 method: 'Razorpay',
@@ -692,37 +685,15 @@ export class CheckoutModal {
           },
           modal: {
             ondismiss: () => {
+              console.log("Razorpay checkout modal dismissed by user.");
               this.isProcessingPayment = false;
               this.render();
             }
           }
         };
 
-        if (serverOrderId) {
-          options.order_id = serverOrderId;
-        }
-
-        if (typeof window.Razorpay !== 'undefined') {
-          const rzp = new window.Razorpay(options);
-          rzp.open();
-        } else {
-          // Fallback simulation in test environment without live CDN script
-          console.warn('Razorpay SDK loading fallback');
-          setTimeout(() => {
-            const result = store.createOrder(this.shippingData, {
-              method: 'Razorpay (Test)',
-              status: 'PAID',
-              details: { razorpay_payment_id: `pay_test_${Date.now()}` }
-            });
-            this.isProcessingPayment = false;
-            if (result && result.success) {
-              this.completedOrder = result.order;
-              this.step = 3;
-              this.render();
-              store.showToast('Payment successful! Order confirmed.');
-            }
-          }, 600);
-        }
+        const rzp = new window.Razorpay(options);
+        rzp.open();
       } catch (err) {
         console.error('Razorpay checkout error:', err);
         store.showToast('Could not launch Razorpay checkout', 'error');
@@ -766,3 +737,6 @@ export class CheckoutModal {
     });
   }
 }
+
+export const checkoutModal = new CheckoutModal();
+export const cartDrawer = new CartDrawer();

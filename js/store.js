@@ -808,6 +808,69 @@ class StoreService {
     return { success: true, order: newOrder };
   }
 
+  // Direct Single-Item Order Creation for "Buy Now" (bypasses and preserves global cart)
+  createDirectOrder(product, size, qty = 1, shippingInfo = {}, paymentInfo = {}) {
+    const available = this.getSizeStock(product.id, size);
+    if (qty > available) {
+      const msg = available === 0 
+        ? `"${product.name}" (Size: ${size}) is currently Out of Stock.`
+        : `Only ${available} available in size ${size} for "${product.name}".`;
+      this.showToast(msg, 'error');
+      return { success: false, message: msg };
+    }
+
+    // Deduct stock for the purchased size
+    this.decreaseSizeStock(product.id, size, qty);
+
+    const subtotal = (product.price || 0) * qty;
+    const shipping = subtotal >= 2499 ? 0 : 99;
+    const config = this.getPaymentConfig();
+    const taxAmount = config.enableGST ? Math.round(subtotal * (config.gstRate || 0.12)) : 0;
+    const finalTotal = subtotal + shipping + taxAmount;
+
+    const method = paymentInfo.method || 'Razorpay (Buy Now)';
+    const paymentStatus = paymentInfo.status || 'PAID';
+    const orderStatus = 'CONFIRMED (Processing Dispatch)';
+
+    const item = {
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      size: size,
+      qty: qty,
+      image: product.imagePrimary || (product.images && product.images[0]) || '',
+      gsm: product.gsm || '320'
+    };
+
+    const newOrder = {
+      id: `TM-${Math.floor(1000 + Math.random() * 9000)}`,
+      date: new Date().toISOString().split('T')[0],
+      customerName: shippingInfo.name || 'Customer',
+      email: shippingInfo.email || 'teematrixsupport@gmail.com',
+      phone: shippingInfo.phone || '8593071292',
+      address: shippingInfo.address ? `${shippingInfo.address}, ${shippingInfo.city || ''}, ${shippingInfo.zip || ''}` : 'Direct Express Doorstep Delivery, Bangalore - 560095',
+      items: [item],
+      subtotal: subtotal,
+      shipping: shipping,
+      tax: taxAmount,
+      total: finalTotal,
+      paymentMethod: method,
+      paymentStatus: paymentStatus,
+      paymentDetails: paymentInfo.details || {},
+      status: orderStatus
+    };
+
+    const orders = this.getOrders();
+    orders.unshift(newOrder);
+    localStorage.setItem('tm_orders', JSON.stringify(orders));
+    this.notify();
+
+    // Async sync to Supabase
+    supabaseService.saveOrder(newOrder);
+
+    return { success: true, order: newOrder };
+  }
+
   markOrderPaid(orderId) {
     let target = null;
     let orders = this.getOrders();
