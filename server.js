@@ -21,8 +21,8 @@ const CONFIG_FILE = path.join(DATA_DIR, 'payment_config.json');
 // Default initial payment configuration
 const DEFAULT_PAYMENT_CONFIG = {
   merchantUpiVpa: 'teematrix@okaxis',
-  merchantName: 'TEE MATRIX ATELIER',
-  razorpayKeyId: process.env.RAZORPAY_KEY_ID || '',
+  merchantName: 'Tee Matrix',
+  razorpayKeyId: process.env.RAZORPAY_KEY_ID || 'rzp_test_TSNOwRfNZPmZmS',
   enableCOD: true,
   enableGST: false,
   gstRate: 0.12

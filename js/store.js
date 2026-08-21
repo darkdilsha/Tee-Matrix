@@ -711,8 +711,8 @@ class StoreService {
     } catch (_) {}
     return {
       merchantUpiVpa: 'teematrix@okaxis',
-      merchantName: 'TEE MATRIX ATELIER',
-      razorpayKeyId: '',
+      merchantName: 'Tee Matrix',
+      razorpayKeyId: 'rzp_test_TSNOwRfNZPmZmS',
       enableCOD: true,
       enableGST: false,
       gstRate: 0.12
