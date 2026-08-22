@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
+import { generateOrderId, isUniqueViolation } from './lib/orderId.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -54,23 +55,41 @@ if (missingEnvVars.length > 0) {
   process.exit(1);
 }
 
+// MERCHANT_UPI_VPA is a warning rather than a boot failure: Razorpay and COD checkout work
+// without it. Only the direct-UPI QR path depends on it, so the store can launch on the other
+// two methods while a merchant VPA is still being issued.
+if (!process.env.MERCHANT_UPI_VPA || !process.env.MERCHANT_UPI_VPA.trim()) {
+  console.warn('\n[WARNING] MERCHANT_UPI_VPA is not set. Direct UPI QR codes will use the');
+  console.warn('placeholder VPA, which you do not own — those payments cannot reach you.');
+  console.warn('Set MERCHANT_UPI_VPA, or disable the UPI option, before taking real orders.\n');
+}
+
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
 const RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET;
 
-// Ensure local data directory exists for config persistence
+// Ensure local data directory exists for config persistence.
+// Hosts with a read-only filesystem must still boot: config then falls back to the
+// env-driven defaults below and admin edits are held in memory only.
 const DATA_DIR = path.join(__dirname, 'data');
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+try {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+} catch (err) {
+  console.warn(`[Config] Cannot create ${DATA_DIR} (${err.code}). Payment config will not persist.`);
 }
 
 const CONFIG_FILE = path.join(DATA_DIR, 'payment_config.json');
 
-// Default initial payment configuration
+// Default initial payment configuration.
+// MERCHANT_UPI_VPA must be set in the host environment. Deploy targets with an ephemeral
+// filesystem wipe payment_config.json on every redeploy, so this env var — not the file — is
+// what keeps UPI QRs pointed at the real merchant account.
 const DEFAULT_PAYMENT_CONFIG = {
-  merchantUpiVpa: 'teematrix@okaxis',
+  merchantUpiVpa: process.env.MERCHANT_UPI_VPA || 'teematrix@okaxis',
   merchantName: 'Tee Matrix',
   enableCOD: true,
   enableGST: false,
@@ -175,6 +194,40 @@ async function supabaseQuery(endpoint, options = {}) {
     return await res.json();
   }
   return null;
+}
+
+// Order ids must be unique across the whole life of the store. The previous scheme used the
+// last four digits of Date.now(), a 10,000-value space that recycles every 10 seconds, so two
+// orders placed 10s apart collided and the second insert failed on the primary key.
+// generateOrderId and isUniqueViolation live in lib/orderId.js so they stay unit-testable.
+
+// Retries only on an id collision. Any other failure — dropped connection, RLS refusal,
+// schema mismatch — must propagate untouched rather than being retried blindly.
+async function insertOrderWithUniqueId(buildRow) {
+  let lastErr;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const id = generateOrderId();
+    try {
+      const created = await supabaseQuery('orders', { method: 'POST', body: [buildRow(id)] });
+      return { id, row: created ? created[0] : null };
+    } catch (err) {
+      if (!isUniqueViolation(err)) throw err;
+      lastErr = err;
+      console.warn(`[Orders] Order id collision on ${id}, retrying with a new id`);
+    }
+  }
+  throw lastErr || new Error('Could not allocate a unique order id after 3 attempts');
+}
+
+// Supabase/PostgREST error text names columns, constraints and sometimes row values. It is
+// useful in logs and must never reach the client. Auth rejections and the price/stock
+// validation messages are written for customers, so those still pass through.
+function sendOrderFailure(res, req, err, context) {
+  console.error(`[Orders] ${context}:`, err);
+  if (err && err.status) {
+    return sendJSON(res, err.status, { error: err.message || 'Request rejected' }, req);
+  }
+  return sendJSON(res, 503, { error: 'Could not create your order. Please try again.' }, req);
 }
 
 // Customer Auth Verification via Supabase /auth/v1/user
@@ -504,6 +557,10 @@ const server = http.createServer(async (req, res) => {
       // Calculate authoritative server total from DB prices and stock
       const calculation = await calculateAuthoritativeOrder(items);
 
+      // Allocate the order id up front so it can travel as the Razorpay receipt, which is what
+      // makes a dashboard payment traceable back to a row without a lookup table.
+      const tmOrderId = generateOrderId();
+
       const authHeader = 'Basic ' + Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString('base64');
       const rzpResponse = await fetch('https://api.razorpay.com/v1/orders', {
         method: 'POST',
@@ -514,7 +571,7 @@ const server = http.createServer(async (req, res) => {
         body: JSON.stringify({
           amount: calculation.amountInPaise,
           currency: 'INR',
-          receipt: `rcpt_${Date.now().toString().slice(-6)}`,
+          receipt: tmOrderId,
           notes: {
             customer_name: body.shippingInfo?.name || '',
             customer_phone: auth.phone
@@ -530,7 +587,6 @@ const server = http.createServer(async (req, res) => {
       }
 
       // Persist order in Supabase with PENDING_PAYMENT status using service-role key
-      const tmOrderId = `TM-${Date.now().toString().slice(-4)}`;
       const orderRow = {
         id: tmOrderId,
         phone_number: auth.phone,
@@ -550,24 +606,34 @@ const server = http.createServer(async (req, res) => {
         payment_details: {}
       };
 
-      await supabaseQuery('orders', {
-        method: 'POST',
-        body: [orderRow]
-      });
+      let finalOrderId = tmOrderId;
+      try {
+        await supabaseQuery('orders', { method: 'POST', body: [orderRow] });
+      } catch (insertErr) {
+        if (!isUniqueViolation(insertErr)) {
+          // The gateway order already exists but no row was written. Log the id so the
+          // orphan can be found and cancelled in the Razorpay dashboard.
+          console.error(`[Orders] ORPHANED Razorpay order ${rzpData.id} — no DB row written`, insertErr);
+          throw insertErr;
+        }
+        // Vanishingly rare. Take a fresh id and accept that the Razorpay receipt no longer
+        // matches — a recorded order matters more than a tidy receipt.
+        const retry = await insertOrderWithUniqueId(id => ({ ...orderRow, id }));
+        finalOrderId = retry.id;
+        console.warn(`[Orders] Receipt ${tmOrderId} does not match stored id ${finalOrderId} after collision`);
+      }
 
       return sendJSON(res, 200, {
         success: true,
         order_id: rzpData.id,
-        tm_order_id: tmOrderId,
+        tm_order_id: finalOrderId,
         amount: calculation.total,
         amount_paise: calculation.amountInPaise,
         currency: 'INR',
         key_id: RAZORPAY_KEY_ID
       }, req);
     } catch (err) {
-      console.error('Create Razorpay order error:', err);
-      const status = err.status || 500;
-      return sendJSON(res, status, { error: err.message || 'Internal Server Error' }, req);
+      return sendOrderFailure(res, req, err, 'Create Razorpay order failed');
     }
   }
 
@@ -583,11 +649,10 @@ const server = http.createServer(async (req, res) => {
 
       const calculation = await calculateAuthoritativeOrder(items);
 
-      const tmOrderId = `TM-${Date.now().toString().slice(-4)}`;
       const initialPaymentStatus = paymentMethod === 'COD' ? 'COD_PENDING' : 'PENDING_VERIFICATION';
 
-      const orderRow = {
-        id: tmOrderId,
+      const buildOrderRow = (id) => ({
+        id,
         phone_number: auth.phone,
         customer_name: body.shippingInfo?.name || 'Customer',
         email: body.shippingInfo?.email || '',
@@ -602,21 +667,16 @@ const server = http.createServer(async (req, res) => {
         payment_status: initialPaymentStatus,
         payment_method: paymentMethod,
         payment_details: body.paymentDetails || {}
-      };
-
-      const createdOrders = await supabaseQuery('orders', {
-        method: 'POST',
-        body: [orderRow]
       });
+
+      const { id: createdId, row: createdRow } = await insertOrderWithUniqueId(buildOrderRow);
 
       return sendJSON(res, 200, {
         success: true,
-        order: createdOrders ? createdOrders[0] : orderRow
+        order: createdRow || buildOrderRow(createdId)
       }, req);
     } catch (err) {
-      console.error('Create order error:', err);
-      const status = err.status || 500;
-      return sendJSON(res, status, { error: err.message || 'Internal Server Error' }, req);
+      return sendOrderFailure(res, req, err, 'Create order failed');
     }
   }
 

@@ -1,0 +1,22 @@
+# Files Vercel must never publish.
+#
+# Vercel serves this repo as static files, so it does NOT apply the static-file allowlist in
+# server.js. Anything left here is downloadable by URL. Verified 2026-08-21: /server.js,
+# /supabase_setup.sql and /SECURITY_FIXES_PROMPT.md were all returning 200 on the live site,
+# and the security docs and SQL seed contain the admin phone number that grants admin access.
+
+# Server source — never executed by Vercel, only leaked by it
+server.js
+lib/
+verify_rls.mjs
+
+# Database schema, RLS policies, admin seed rows
+supabase_setup.sql
+
+# Internal security audit documents and specs
+*.md
+
+# Runtime state and secrets
+data/
+.env
+.env.*

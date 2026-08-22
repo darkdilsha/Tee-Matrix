@@ -1,0 +1,15 @@
+{
+  "name": "tee-matrix",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tee Matrix storefront and payment API",
+  "type": "module",
+  "engines": {
+    "node": ">=20.6.0"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node tests/orderId.test.mjs",
+    "verify-rls": "node verify_rls.mjs"
+  }
+}
