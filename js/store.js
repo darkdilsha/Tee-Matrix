@@ -679,13 +679,49 @@ class StoreService {
 
   clearCart() {
     localStorage.setItem('tm_cart', JSON.stringify([]));
+    this.setPromoCode(null);
     this.notify();
+  }
+
+  // Promo state is shared between the cart drawer (where the code is typed) and the checkout modal
+  // (where the total is shown and the order is placed). It used to live only on
+  // CartDrawer.discountPercent, so the drawer displayed "10% off applied" while the checkout modal
+  // and the server both charged full price. The server re-validates the code on every order — this
+  // is display state only.
+  getPromoCode() {
+    try {
+      return localStorage.getItem('tm_promo_code') || null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  setPromoCode(code) {
+    try {
+      if (code) localStorage.setItem('tm_promo_code', code);
+      else localStorage.removeItem('tm_promo_code');
+    } catch (_) {}
+  }
+
+  // Resolves the stored code against the promo table published by /api/payment-config, so the
+  // discount shown is the discount the server will apply. Returns null when no valid code applies.
+  getAppliedPromo() {
+    const code = this.getPromoCode();
+    if (!code) return null;
+    const table = this.getPaymentConfig().promoCodes || {};
+    const promo = table[code];
+    if (!promo) return null;
+    const { subtotal } = this.getCartTotal();
+    if (subtotal < (promo.minSubtotal || 0)) return null;
+    return { code, percent: promo.percent, amount: Math.round(subtotal * (promo.percent / 100)) };
   }
 
   getCartTotal() {
     const cart = this.getCart();
     const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-    const shipping = subtotal > 2499 || cart.length === 0 ? 0 : 99;
+    // Threshold matches the server's `subtotal >= 2499` exactly. It used to be `> 2499`, so a cart
+    // at exactly ₹2499 was quoted ₹99 shipping and then charged ₹0.
+    const shipping = subtotal >= 2499 || cart.length === 0 ? 0 : 99;
     return {
       subtotal,
       shipping,
@@ -785,6 +821,7 @@ class StoreService {
         body: JSON.stringify({
           items,
           shippingInfo,
+          promoCode: this.getPromoCode(),
           paymentMethod: paymentInfo.method || 'UPI',
           paymentDetails: paymentInfo.details || {}
         })
@@ -814,6 +851,12 @@ class StoreService {
   }
 
   // Direct Single-Item Order Creation for "Buy Now" (bypasses and preserves global cart)
+  //
+  // Unused since Buy Now was changed to add the item to the cart and open the shared checkout —
+  // the old direct path invented a placeholder shipping address. It is kept here only because it
+  // is the one call site shape that would need updating if a true single-item path returns; note
+  // that it does NOT forward a promoCode and does NOT compose city/pincode into the address, so
+  // reviving it as-is would reintroduce both bugs.
   async createDirectOrder(product, size, qty = 1, shippingInfo = {}, paymentInfo = {}) {
     const token = await supabaseService.getAccessToken();
     if (!token) {

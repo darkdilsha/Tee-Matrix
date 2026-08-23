@@ -13,6 +13,21 @@ export const AUTHORIZED_ADMIN_NUMBERS = [
   '8593071292'
 ];
 
+// addresses.id and payment_methods.id are UUID columns. Client code used to mint ids like
+// `addr-${Date.now()}`, which Postgres rejects with 22P02 (invalid input syntax for type uuid),
+// so every save 400'd — silently, because the callers swallowed the error. Mint a real UUID so the
+// row the browser holds and the row in the database share an id.
+export function newUuid() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  // Fallback for non-secure contexts where crypto.randomUUID is unavailable.
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : ((r & 0x3) | 0x8)).toString(16);
+  });
+}
+
 export class SupabaseService {
   // Format phone number to E.164 standard (+91XXXXXXXXXX)
   formatPhone(phone) {
@@ -246,7 +261,7 @@ export class SupabaseService {
   async saveUserAddress(phone, addressData) {
     try {
       const row = {
-        id: addressData.id || undefined,
+        id: addressData.id || newUuid(),
         phone_number: phone,
         name: addressData.name,
         phone: addressData.phone,
@@ -256,8 +271,16 @@ export class SupabaseService {
         pincode: addressData.pincode,
         is_default: addressData.isDefault || false
       };
-      await supabase.from('addresses').upsert([row]);
-    } catch (e) {}
+      const { error } = await supabase.from('addresses').upsert([row]);
+      if (error) {
+        console.error('Failed to save address:', error);
+        return { success: false, message: error.message };
+      }
+      return { success: true, id: row.id };
+    } catch (e) {
+      console.error('Failed to save address:', e);
+      return { success: false, message: e.message || 'Network error while saving address' };
+    }
   }
 
   // 6. Payment Methods CRUD (Masked references only)
@@ -279,14 +302,22 @@ export class SupabaseService {
   async saveUserPaymentMethod(phone, pmData) {
     try {
       const row = {
-        id: pmData.id || undefined,
+        id: pmData.id || newUuid(),
         phone_number: phone,
         type: pmData.type,
         masked_identifier: pmData.maskedIdentifier,
         is_default: pmData.isDefault || false
       };
-      await supabase.from('payment_methods').upsert([row]);
-    } catch (e) {}
+      const { error } = await supabase.from('payment_methods').upsert([row]);
+      if (error) {
+        console.error('Failed to save payment method:', error);
+        return { success: false, message: error.message };
+      }
+      return { success: true, id: row.id };
+    } catch (e) {
+      console.error('Failed to save payment method:', e);
+      return { success: false, message: e.message || 'Network error while saving payment method' };
+    }
   }
 
   // 7. Orders Read Operations (Client-Side Read Only)

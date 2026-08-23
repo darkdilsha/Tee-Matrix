@@ -2,7 +2,7 @@
 
 import { store } from './store.js';
 import { authModal } from './authModal.js';
-import { supabaseService } from './supabase.js';
+import { supabaseService, newUuid } from './supabase.js';
 
 export class AccountModal {
   constructor() {
@@ -440,10 +440,12 @@ export class AccountModal {
     modal.querySelector('#closeAddrModal').addEventListener('click', close);
     modal.querySelector('#cancelAddrBtn').addEventListener('click', close);
 
-    modal.querySelector('#newAddressForm').addEventListener('submit', (e) => {
+    modal.querySelector('#newAddressForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const newAddr = {
-        id: `addr-${Date.now()}`,
+        // addresses.id is a UUID column — `addr-${Date.now()}` was rejected by Postgres (22P02)
+        // and the save failed silently, so saved addresses never persisted past a reload.
+        id: newUuid(),
         name: modal.querySelector('#addName').value,
         phone: modal.querySelector('#addPhone').value,
         addressLine: modal.querySelector('#addLine').value,
@@ -453,11 +455,17 @@ export class AccountModal {
         isDefault: this.addresses.length === 0
       };
 
+      const saved = await supabaseService.saveUserAddress(customer.phone, newAddr);
+      if (!saved.success) {
+        store.showToast(saved.message || 'Could not save address. Please try again.', 'error');
+        return;
+      }
+
       this.addresses.push(newAddr);
-      supabaseService.saveUserAddress(customer.phone, newAddr);
       this.saveLocalData(customer.phone);
       close();
       this.render(customer);
+      store.showToast('Address saved');
     });
   }
 
@@ -498,20 +506,27 @@ export class AccountModal {
     modal.querySelector('#closePMModal').addEventListener('click', close);
     modal.querySelector('#cancelPMBtn').addEventListener('click', close);
 
-    modal.querySelector('#newPMForm').addEventListener('submit', (e) => {
+    modal.querySelector('#newPMForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const newPM = {
-        id: `pm-${Date.now()}`,
+        // payment_methods.id is a UUID column — see the address form above.
+        id: newUuid(),
         type: modal.querySelector('#pmType').value,
         maskedIdentifier: modal.querySelector('#pmMasked').value,
         isDefault: this.paymentMethods.length === 0
       };
 
+      const saved = await supabaseService.saveUserPaymentMethod(customer.phone, newPM);
+      if (!saved.success) {
+        store.showToast(saved.message || 'Could not save payment method. Please try again.', 'error');
+        return;
+      }
+
       this.paymentMethods.push(newPM);
-      supabaseService.saveUserPaymentMethod(customer.phone, newPM);
       this.saveLocalData(customer.phone);
       close();
       this.render(customer);
+      store.showToast('Payment reference saved');
     });
   }
 }

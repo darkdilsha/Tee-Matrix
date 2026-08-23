@@ -5,7 +5,6 @@ import { supabaseService } from './supabase.js';
 export class CartDrawer {
   constructor() {
     this.isOpen = false;
-    this.discountPercent = 0;
   }
 
   toggle() {
@@ -35,8 +34,12 @@ export class CartDrawer {
 
     const cart = store.getCart();
     const totals = store.getCartTotal();
-    const discountedSubtotal = totals.subtotal * (1 - this.discountPercent / 100);
-    const finalTotal = discountedSubtotal + totals.shipping;
+    // The promo lives in the store so the checkout modal charges what this drawer displays, and it
+    // is resolved against the table published by /api/payment-config so the percentage matches the
+    // one the server will actually apply.
+    const promo = store.getAppliedPromo();
+    const discount = promo?.amount || 0;
+    const finalTotal = totals.subtotal - discount + totals.shipping;
 
     drawer.innerHTML = `
       <div class="cart-header">
@@ -104,8 +107,8 @@ export class CartDrawer {
             <input type="text" id="couponInput" placeholder="Promo code (e.g. MATRIX10)" class="input-field" style="padding: 0.5rem 0.75rem; font-size: 0.8rem;" />
             <button class="btn-secondary" id="applyCouponBtn" style="padding: 0.5rem 1rem; font-size: 0.75rem;">APPLY</button>
           </div>
-          ${this.discountPercent > 0 ? `
-            <div style="font-size: 0.75rem; color: var(--accent-success);">Promo MATRIX10 Applied! 10% Off</div>
+          ${promo ? `
+            <div style="font-size: 0.75rem; color: var(--accent-success);">Promo ${promo.code} Applied! ${promo.percent}% Off</div>
           ` : ''}
 
           <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.85rem; margin-top: 0.5rem;">
@@ -113,10 +116,10 @@ export class CartDrawer {
               <span>Subtotal</span>
               <span>₹${totals.subtotal.toLocaleString('en-IN')}</span>
             </div>
-            ${this.discountPercent > 0 ? `
+            ${promo ? `
               <div style="display: flex; justify-content: space-between; color: var(--accent-success);">
-                <span>Discount (10%)</span>
-                <span>-₹${(totals.subtotal * 0.1).toLocaleString('en-IN')}</span>
+                <span>Discount (${promo.percent}%)</span>
+                <span>-₹${discount.toLocaleString('en-IN')}</span>
               </div>
             ` : ''}
             <div style="display: flex; justify-content: space-between; color: var(--text-secondary);">
@@ -168,13 +171,22 @@ export class CartDrawer {
 
     document.getElementById('applyCouponBtn')?.addEventListener('click', () => {
       const code = document.getElementById('couponInput')?.value.trim().toUpperCase();
-      if (code === 'MATRIX10') {
-        this.discountPercent = 10;
-        store.showToast("Promo MATRIX10 Applied! 10% Discount");
-        this.render();
-      } else {
+      // Validated against the server-published table, not a hardcoded string, so the drawer can
+      // never advertise a code the server would reject at checkout.
+      const table = store.getPaymentConfig().promoCodes || {};
+      if (!code) return;
+      if (!table[code]) {
         store.showToast("Invalid Promo Code");
+        return;
       }
+      const min = table[code].minSubtotal || 0;
+      if (store.getCartTotal().subtotal < min) {
+        store.showToast(`${code} needs a minimum subtotal of ₹${min.toLocaleString('en-IN')}`, 'error');
+        return;
+      }
+      store.setPromoCode(code);
+      store.showToast(`Promo ${code} Applied! ${table[code].percent}% Discount`);
+      this.render();
     });
 
     document.getElementById('checkoutBtn')?.addEventListener('click', () => {
@@ -208,7 +220,10 @@ export class CheckoutModal {
   }
 
   open() {
-    const user = store.getCurrentUser();
+    // getCurrentCustomer() is the real method on StoreService; getCurrentUser() never existed,
+    // so this line used to throw a TypeError before render() and no checkout modal was ever built.
+    // The session only carries name/phone/email — address fields stay blank for the customer to fill.
+    const user = store.getCurrentCustomer();
     if (user) {
       this.shippingData = {
         name: user.name || '',
@@ -251,8 +266,12 @@ export class CheckoutModal {
     const cart = store.getCart();
     const totals = store.getCartTotal();
     const config = store.getPaymentConfig();
-    const taxAmount = config.enableGST ? Math.round(totals.subtotal * (config.gstRate || 0.12)) : 0;
-    const finalPayable = totals.total + taxAmount;
+    // Same promo the cart drawer showed and the same arithmetic the server uses in
+    // calculateAuthoritativeOrder: GST on the post-discount subtotal, shipping judged on gross.
+    const promo = store.getAppliedPromo();
+    const discount = promo?.amount || 0;
+    const taxAmount = config.enableGST ? Math.round((totals.subtotal - discount) * (config.gstRate || 0.12)) : 0;
+    const finalPayable = totals.subtotal - discount + totals.shipping + taxAmount;
 
     // Generate UPI URI
     const vpa = config.merchantUpiVpa || 'teematrix@okaxis';
@@ -322,6 +341,12 @@ export class CheckoutModal {
                 <span>Items Subtotal (${totals.itemCount} items)</span>
                 <span style="color: #fff;">₹${totals.subtotal.toLocaleString('en-IN')}</span>
               </div>
+              ${promo ? `
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; color: var(--accent-success);">
+                  <span>Promo ${promo.code} (${promo.percent}%)</span>
+                  <span>-₹${discount.toLocaleString('en-IN')}</span>
+                </div>
+              ` : ''}
               <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; color: var(--text-muted);">
                 <span>Express Doorstep Shipping</span>
                 <span style="color: #fff;">${totals.shipping === 0 ? '<strong style="color: var(--accent-success);">FREE</strong>' : `₹${totals.shipping}`}</span>
@@ -503,6 +528,12 @@ export class CheckoutModal {
                 <span>Subtotal</span>
                 <span style="color: #fff;">₹${(this.completedOrder?.subtotal || 0).toLocaleString('en-IN')}</span>
               </div>
+              ${this.completedOrder?.discount ? `
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.35rem; color: var(--accent-success);">
+                  <span>Promo ${this.completedOrder?.promo?.code || ''} (${this.completedOrder?.promo?.percent || 0}%)</span>
+                  <span>-₹${this.completedOrder.discount.toLocaleString('en-IN')}</span>
+                </div>
+              ` : ''}
               <div style="display: flex; justify-content: space-between; margin-bottom: 0.35rem; color: var(--text-muted);">
                 <span>Shipping</span>
                 <span style="color: #fff;">${(this.completedOrder?.shipping === 0) ? 'FREE' : `₹${this.completedOrder?.shipping}`}</span>
@@ -657,7 +688,8 @@ export class CheckoutModal {
           },
           body: JSON.stringify({
             items,
-            shippingInfo: this.shippingData
+            shippingInfo: this.shippingData,
+            promoCode: store.getPromoCode()
           })
         });
 
@@ -702,21 +734,29 @@ export class CheckoutModal {
               });
               const verifyData = await verifyRes.json();
               if (verifyRes.ok && verifyData.success) {
-                store.clearCart();
-                this.completedOrder = {
+                // Built from the server's own figures (orderData), not from the local cart, so the
+                // receipt shows what was actually charged. `subtotal: orderData.amount` and
+                // `shipping: 0` used to be hardcoded, which printed the grand total as the subtotal
+                // and claimed free shipping on every order.
+                const receipt = {
                   id: orderData.tm_order_id,
                   customerName: prefillName,
                   phone: prefillPhone,
                   email: prefillEmail,
-                  address: `${this.shippingData?.address || ''}, ${this.shippingData?.city || ''}, ${this.shippingData?.zip || ''}`,
-                  items: [...cart],
-                  subtotal: orderData.amount,
-                  shipping: 0,
+                  address: orderData.address,
+                  items: cart.map(i => ({ name: i.name, size: i.size, qty: i.qty, price: i.price })),
+                  subtotal: orderData.subtotal,
+                  discount: orderData.discount || 0,
+                  promo: orderData.promo || null,
+                  shipping: orderData.shipping || 0,
+                  tax: orderData.tax || 0,
                   total: orderData.amount,
                   paymentMethod: 'Razorpay',
                   paymentStatus: 'PAID',
                   paymentDetails: { razorpay_payment_id: response.razorpay_payment_id }
                 };
+                store.clearCart();
+                this.completedOrder = receipt;
                 this.isProcessingPayment = false;
                 this.step = 3;
                 this.render();

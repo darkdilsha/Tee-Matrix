@@ -12,6 +12,12 @@ export class AdminPanel {
     this.adminPhone = '';
     this.timerCountdown = 30;
     this.timerInterval = null;
+    // Orders live in Supabase, not in this browser. render() is synchronous, so the list is
+    // fetched once after the dashboard mounts and cached here; null means "not loaded yet",
+    // which the renderer shows as a loading row rather than "No orders registered yet."
+    this.remoteOrders = null;
+    this.ordersError = null;
+    this.ordersLoading = false;
   }
 
   render() {
@@ -131,11 +137,50 @@ export class AdminPanel {
     `;
   }
 
+  // Fetches the authoritative order list from the server (service-role read behind requireAdmin).
+  // store.getOrders() only ever returned this browser's localStorage, so it could not show orders
+  // placed by customers. Returns true when the cache changed and a re-render is worth doing.
+  async loadOrders() {
+    if (this.ordersLoading) return false;
+    this.ordersLoading = true;
+    try {
+      const token = await supabaseService.getAccessToken();
+      if (!token) {
+        this.ordersError = 'Admin session expired. Please re-authenticate to load orders.';
+        this.remoteOrders = [];
+        return true;
+      }
+      const res = await fetch('/api/admin/orders', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        this.ordersError = data.error || 'Failed to load orders';
+        this.remoteOrders = [];
+        return true;
+      }
+      this.remoteOrders = Array.isArray(data.orders) ? data.orders : [];
+      this.ordersError = null;
+      return true;
+    } catch (err) {
+      this.ordersError = 'Network error while loading orders';
+      this.remoteOrders = [];
+      return true;
+    } finally {
+      this.ordersLoading = false;
+    }
+  }
+
   renderDashboard() {
     const products = store.getProducts();
-    const orders = store.getOrders();
+    const orders = this.remoteOrders || [];
     const inStockCount = products.filter(p => p.inStock).length;
-    const totalRevenue = orders.reduce((sum, o) => sum + o.total, 0);
+    // Revenue counts settled money only. Summing every row here would bill rejected UTRs and
+    // abandoned Razorpay attempts as sales.
+    const totalRevenue = orders
+      .filter(o => o.paymentStatus === 'PAID')
+      .reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+    const ordersLabel = this.remoteOrders === null ? '…' : orders.length;
 
     return `
       <div class="admin-container container">
@@ -162,13 +207,13 @@ export class AdminPanel {
           </div>
 
           <div class="glass-panel" style="padding: 1.5rem;">
-            <span style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.5rem;">TOTAL SALES REVENUE</span>
+            <span style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.5rem;">TOTAL SALES REVENUE (PAID)</span>
             <span style="font-size: 2.2rem; font-weight: 800; color: #fff; font-family: var(--font-heading);">₹${totalRevenue.toLocaleString('en-IN')}</span>
           </div>
 
           <div class="glass-panel" style="padding: 1.5rem;">
             <span style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.5rem;">ONLINE ORDERS</span>
-            <span style="font-size: 2.2rem; font-weight: 800; color: var(--accent-silver); font-family: var(--font-heading);">${orders.length}</span>
+            <span style="font-size: 2.2rem; font-weight: 800; color: var(--accent-silver); font-family: var(--font-heading);">${ordersLabel}</span>
           </div>
         </div>
 
@@ -178,7 +223,7 @@ export class AdminPanel {
             PRODUCTS MANAGEMENT (${products.length})
           </button>
           <button class="pill-btn ${this.activeTab === 'orders' ? 'active' : ''}" id="tabOrdersBtn" style="padding: 0.8rem 1.8rem; font-size: 0.85rem;">
-            CUSTOMER ORDERS (${orders.length})
+            CUSTOMER ORDERS (${ordersLabel})
           </button>
           <button class="pill-btn ${this.activeTab === 'payment_settings' ? 'active' : ''}" id="tabPaymentSettingsBtn" style="padding: 0.8rem 1.8rem; font-size: 0.85rem; border-color: var(--accent-gold); color: ${this.activeTab === 'payment_settings' ? '#000' : 'var(--accent-gold)'}">
             ⚙️ PAYMENT SETTINGS
@@ -279,9 +324,16 @@ export class AdminPanel {
   }
 
   renderOrdersTab(orders) {
+    const loading = this.remoteOrders === null;
     return `
       <div>
-        <h2 style="font-size: 1.4rem; color: #fff; margin-bottom: 1.5rem;">ONLINE DISPATCH ORDERS (${orders.length})</h2>
+        <h2 style="font-size: 1.4rem; color: #fff; margin-bottom: 1.5rem;">ONLINE DISPATCH ORDERS (${loading ? '…' : orders.length})</h2>
+        ${this.ordersError ? `
+          <div style="margin-bottom: 1rem; padding: 0.85rem 1rem; border: 1px solid rgba(239,68,68,0.4); border-radius: 6px; color: var(--accent-danger); font-size: 0.82rem;">
+            ${this.ordersError}
+            <button class="btn-secondary" id="retryOrdersBtn" style="margin-left: 1rem; padding: 0.3rem 0.8rem; font-size: 0.7rem;">RETRY</button>
+          </div>
+        ` : ''}
         <div style="overflow-x: auto;">
           <table class="admin-table">
             <thead>
@@ -298,7 +350,11 @@ export class AdminPanel {
               </tr>
             </thead>
             <tbody>
-              ${orders.length === 0 ? `
+              ${loading ? `
+                <tr>
+                  <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading orders from database…</td>
+                </tr>
+              ` : orders.length === 0 ? `
                 <tr>
                   <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 2rem;">No orders registered yet.</td>
                 </tr>
@@ -309,6 +365,7 @@ export class AdminPanel {
                   <td>
                     <strong style="color: #fff; display: block; font-size: 0.9rem;">${o.customerName}</strong>
                     <span style="font-size: 0.75rem; color: var(--text-muted);">${o.phone || o.email}</span>
+                    <span style="font-size: 0.72rem; color: var(--text-secondary); display: block; margin-top: 0.2rem; max-width: 220px;">${o.address || ''}</span>
                   </td>
                   <td>
                     <span style="display: block; font-weight: 700; color: #fff; font-size: 0.85rem;">
@@ -324,6 +381,11 @@ export class AdminPanel {
                     <span class="badge ${o.paymentStatus === 'PAID' ? 'badge-stock' : (o.paymentStatus === 'PENDING_VERIFICATION' ? 'badge-gold' : (o.paymentStatus === 'FAILED' ? 'badge-out' : 'badge-silver'))}" style="font-size: 0.7rem;">
                       ${o.paymentStatus || 'PENDING'}
                     </span>
+                    ${(o.stockWarnings && o.stockWarnings.length > 0) ? `
+                      <span title="${o.stockWarnings.map(w => `${w.productId || '?'} ${w.size} x${w.qty}: ${w.reason}`).join(' | ')}" style="display: block; margin-top: 0.3rem; font-size: 0.68rem; color: var(--accent-danger); font-weight: 700;">
+                        ⚠ STOCK NOT DECREMENTED (${o.stockWarnings.length}) — check inventory before dispatch
+                      </span>
+                    ` : ''}
                   </td>
                   <td style="font-size: 0.8rem; color: var(--text-secondary);">
                     ${Array.isArray(o.items) ? o.items.map(i => `
@@ -451,10 +513,14 @@ export class AdminPanel {
     `;
   }
 
-  renderAnalyticsTab(products, orders) {
+  renderAnalyticsTab(products, allOrders) {
+    // Sales analytics count settled orders only, matching the dashboard revenue metric. Rejected
+    // UTRs and abandoned Razorpay attempts are rows in the table but they are not sales.
+    const orders = (allOrders || []).filter(o => o.paymentStatus === 'PAID');
+
     // 1. Overall Calculations
-    const totalRevenue = orders.reduce((sum, o) => sum + o.total, 0);
-    const totalUnitsSold = orders.reduce((sum, o) => sum + o.items.reduce((s, i) => s + i.qty, 0), 0);
+    const totalRevenue = orders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+    const totalUnitsSold = orders.reduce((sum, o) => sum + (o.items || []).reduce((s, i) => s + i.qty, 0), 0);
     const aov = orders.length > 0 ? totalRevenue / orders.length : 0;
     const inventoryValuation = products.reduce((sum, p) => sum + (p.price * p.stockQty), 0);
 
@@ -1577,6 +1643,19 @@ export class AdminPanel {
   }
 
   attachEvents(reRenderCallback) {
+    // render() is synchronous but the order list is a network read, so kick it off here and
+    // re-render once it lands. Guarded on remoteOrders === null so ordinary re-renders (tab
+    // switches, product edits) don't refetch on every paint or loop forever.
+    if (this.isAuthenticated && this.remoteOrders === null && !this.ordersLoading) {
+      this.loadOrders().then(changed => { if (changed) reRenderCallback(); });
+    }
+
+    document.getElementById('retryOrdersBtn')?.addEventListener('click', () => {
+      this.remoteOrders = null;
+      this.ordersError = null;
+      reRenderCallback();
+    });
+
     // Step 1: Admin Phone Form Submission
     const adminPhoneForm = document.getElementById('adminPhoneForm');
     if (adminPhoneForm) {
@@ -1748,6 +1827,7 @@ export class AdminPanel {
             if (res.ok && data.success) {
               store.showToast(data.message || 'Payment confirmed and stock decremented!');
               await store.syncFromSupabase();
+              await this.loadOrders();
               reRenderCallback();
             } else {
               store.showToast(data.error || 'Failed to confirm payment', 'error');
@@ -1784,6 +1864,7 @@ export class AdminPanel {
             if (res.ok && data.success) {
               store.showToast(data.message || 'Order marked as FAILED');
               await store.syncFromSupabase();
+              await this.loadOrders();
               reRenderCallback();
             } else {
               store.showToast(data.error || 'Failed to reject payment', 'error');

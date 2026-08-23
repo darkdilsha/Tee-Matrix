@@ -1,7 +1,5 @@
 import { store } from './store.js';
 import { authModal } from './authModal.js';
-import { checkoutModal } from './cart.js';
-import { supabaseService } from './supabase.js';
 
 export class ProductDetailModal {
   constructor() {
@@ -405,7 +403,7 @@ export class ProductDetailModal {
       }
     });
 
-    // Buy Now (Direct Single-Item Checkout - Bypasses Global Cart)
+    // Buy Now (single-item fast path into the shared cart checkout)
     document.getElementById('detailBuyNowBtn')?.addEventListener('click', async (e) => {
       if (e) e.preventDefault();
 
@@ -425,127 +423,28 @@ export class ProductDetailModal {
         return;
       }
 
-      // 2. Check Razorpay SDK availability
-      if (typeof window.Razorpay === 'undefined') {
-        alert("Razorpay SDK is loading. Please try again in a moment.");
-        return;
-      }
+      // Buy Now puts this one item in the cart and jumps straight to checkout, reusing the
+      // cart's payment flow rather than posting its own Razorpay order.
+      //
+      // The previous direct path hardcoded shippingInfo as
+      //   address: "Direct Doorstep Express Delivery", city: "Bengaluru", zip: "560095"
+      // and posted that to /api/create-razorpay-order, which writes body.shippingInfo.address
+      // straight into orders.address. Every Buy Now order therefore captured money, settled to
+      // PAID, decremented stock, and left the merchant with a placeholder instead of an address —
+      // while showing that placeholder back to the customer as their DELIVERY ADDRESS.
+      // The cart checkout flow is the only one that asks for a real address, so Buy Now now
+      // goes through it. This also removes a duplicate Razorpay integration.
+      const bought = store.addToCart(product.id, this.selectedSize, this.qty);
+      if (!bought) return;
 
-      const token = await supabaseService.getAccessToken();
-      if (!token) {
+      this.close();
+      if (!store.isCustomerLoggedIn()) {
         authModal.open('login', 'Please log in with mobile OTP to proceed with Instant Buy', () => {
-          document.getElementById('detailBuyNowBtn')?.click();
+          window.dispatchEvent(new CustomEvent('openCheckout'));
         });
         return;
       }
-
-      const qty = this.qty || 1;
-      const customer = store.getCurrentCustomer() || store.getCurrentUser();
-      const prefillName = customer?.name || "Customer";
-      const prefillEmail = customer?.email || "teematrixsupport@gmail.com";
-      const prefillPhone = customer?.phone || "8593071292";
-
-      const shippingInfo = {
-        name: prefillName,
-        email: prefillEmail,
-        phone: prefillPhone,
-        address: "Direct Doorstep Express Delivery",
-        city: "Bengaluru",
-        zip: "560095"
-      };
-
-      try {
-        // Create server-side order with authoritative DB prices
-        const createRes = await fetch('/api/create-razorpay-order', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            items: [{ id: product.id, size: this.selectedSize, qty }],
-            shippingInfo
-          })
-        });
-
-        const orderData = await createRes.json();
-        if (!createRes.ok || !orderData.success) {
-          throw new Error(orderData.error || 'Failed to initiate Razorpay checkout');
-        }
-
-        const options = {
-          key: orderData.key_id,
-          amount: orderData.amount_paise,
-          currency: orderData.currency || "INR",
-          name: "Tee Matrix",
-          description: `Order #${orderData.tm_order_id} - ${product.name} (${this.selectedSize})`,
-          order_id: orderData.order_id,
-          image: product.imagePrimary || "assets/hero_banner.jpg",
-          prefill: {
-            name: prefillName,
-            email: prefillEmail,
-            contact: prefillPhone
-          },
-          theme: {
-            color: "#000000"
-          },
-          handler: async (response) => {
-            try {
-              const verifyRes = await fetch('/api/verify-razorpay-payment', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                  razorpay_order_id: response.razorpay_order_id,
-                  razorpay_payment_id: response.razorpay_payment_id,
-                  razorpay_signature: response.razorpay_signature
-                })
-              });
-              const verifyData = await verifyRes.json();
-              if (verifyRes.ok && verifyData.success) {
-                this.close();
-                checkoutModal.showOrderConfirmation({
-                  id: orderData.tm_order_id,
-                  customerName: prefillName,
-                  phone: prefillPhone,
-                  email: prefillEmail,
-                  address: shippingInfo.address,
-                  items: [{
-                    name: product.name,
-                    size: this.selectedSize,
-                    qty: qty,
-                    price: product.price
-                  }],
-                  subtotal: orderData.amount,
-                  shipping: 0,
-                  total: orderData.amount,
-                  paymentMethod: 'Razorpay (Buy Now)',
-                  paymentStatus: 'PAID',
-                  paymentDetails: { razorpay_payment_id: response.razorpay_payment_id }
-                });
-                store.showToast("Payment verified successfully! Order confirmed.");
-              } else {
-                throw new Error(verifyData.error || 'Payment signature verification failed');
-              }
-            } catch (vErr) {
-              store.showToast(vErr.message, 'error');
-            }
-          },
-          modal: {
-            ondismiss: () => {
-              console.log("Razorpay checkout modal dismissed by user.");
-            }
-          }
-        };
-
-        const rzp = new window.Razorpay(options);
-        rzp.open();
-      } catch (err) {
-        console.error("Razorpay checkout error:", err);
-        store.showToast(err.message || "Could not launch Razorpay checkout", 'error');
-      }
+      window.dispatchEvent(new CustomEvent('openCheckout'));
     });
 
     // Related products click

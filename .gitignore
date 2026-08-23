@@ -19,3 +19,6 @@ yarn-error.log*
 .system_generated/
 .tempmediaStorage/
 scratch/
+
+# Downloaded reference material (DLT / telecom operator PDFs) — not project source
+dlt_research/

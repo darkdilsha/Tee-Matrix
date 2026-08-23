@@ -253,7 +253,13 @@ async function verifyCustomer(req) {
   }
 
   const user = await userRes.json();
-  const rawPhone = user.phone || user.user_metadata?.phone || '';
+  // Only the top-level `phone` claim is trustworthy. user_metadata (raw_user_meta_data) is
+  // client-writable via supabase.auth.updateUser({ data: {...} }) with nothing but the
+  // publishable key, so reading a phone from it would let any session claim any identity —
+  // including a seeded admin number. jwt_phone_digits() in the DB reads only auth.jwt()->>'phone'
+  // for exactly this reason, and every request here uses the service-role key, so RLS never gets
+  // a chance to reject a forged identity. Keep this in sync with the DB helper.
+  const rawPhone = user.phone || '';
   const phoneDigits = rawPhone.replace(/\D/g, '');
   if (!phoneDigits) {
     throw { status: 401, message: 'No verified phone number found on authenticated session' };
@@ -301,8 +307,101 @@ async function decrementStockRpc(productId, size, qty) {
   }
 }
 
+// The checkout form collects street, city and pincode as required fields, but only the street line
+// was ever written to orders.address — so an order arrived at the merchant with no city and no
+// pincode and could not actually be posted. There is no separate city/pincode column, so the parts
+// are composed into the single address column here.
+//
+// The old `|| 'Direct Delivery'` fallback is gone deliberately: capturing money for an order with a
+// placeholder address produces a paid, unshippable order. A missing address is now a 400 at
+// checkout, before any payment is initiated.
+function composeShippingAddress(shippingInfo) {
+  const get = (k) => (shippingInfo?.[k] || '').toString().trim();
+  const street = get('address');
+  const city = get('city');
+  const zip = get('zip') || get('pincode');
+
+  const missing = [];
+  if (!street) missing.push('street address');
+  if (!city) missing.push('city');
+  if (!zip) missing.push('pincode');
+  if (missing.length > 0) {
+    throw { status: 400, message: `Shipping address is incomplete — missing ${missing.join(', ')}` };
+  }
+
+  const state = get('state');
+  return [street, city, state, zip].filter(Boolean).join(', ');
+}
+
 // Authoritative Price & Stock Calculation Helper
-async function calculateAuthoritativeOrder(items) {
+//
+// Promo codes are resolved here and nowhere else. The cart drawer used to apply MATRIX10 in the
+// browser and render a reduced total, while this function — the only thing that decides what the
+// customer is actually charged — knew nothing about it. The customer saw "10% off applied" and paid
+// full price. Any code the client sends is now re-validated server-side; an unknown code is a hard
+// 400 rather than a silent full-price charge.
+const PROMO_CODES = {
+  MATRIX10: { percent: 10, minSubtotal: 0 }
+};
+
+function resolvePromo(rawCode) {
+  if (!rawCode) return null;
+  const code = String(rawCode).trim().toUpperCase();
+  if (!code) return null;
+  const promo = PROMO_CODES[code];
+  if (!promo) {
+    throw { status: 400, message: `Promo code "${code}" is not valid` };
+  }
+  return { code, ...promo };
+}
+
+// Maps a snake_case orders row to the camelCase shape every client renderer expects. Handing the
+// raw row back made the confirmation receipt print "undefined (undefined)" for payment method and
+// status and left the customer name blank, because the row has customer_name / payment_method /
+// payment_status. NUMERIC columns arrive from PostgREST as strings, so they are coerced here too.
+function toClientOrder(row) {
+  if (!row) return null;
+  const details = (row.payment_details && typeof row.payment_details === 'object') ? row.payment_details : {};
+  let items = [];
+  try {
+    items = Array.isArray(row.items) ? row.items : JSON.parse(row.items || '[]');
+  } catch {
+    items = [];
+  }
+  return {
+    id: row.id,
+    date: row.created_at ? new Date(row.created_at).toLocaleString('en-IN') : new Date().toLocaleString('en-IN'),
+    createdAt: row.created_at || null,
+    customerName: row.customer_name,
+    phone: row.phone || row.phone_number,
+    phoneNumber: row.phone_number,
+    email: row.email,
+    address: row.address,
+    items: items.map(i => ({
+      id: i.id || i.productId || null,
+      name: i.name,
+      size: i.size || 'M',
+      qty: Math.max(1, parseInt(i.qty, 10) || 1),
+      price: Number(i.price) || 0,
+      imagePrimary: i.imagePrimary || null
+    })),
+    subtotal: Number(row.subtotal) || 0,
+    shipping: Number(row.shipping) || 0,
+    tax: Number(row.tax) || 0,
+    total: Number(row.total) || 0,
+    discount: Number(details.promo?.amount) || 0,
+    promo: details.promo || null,
+    status: row.status,
+    paymentMethod: row.payment_method,
+    paymentStatus: row.payment_status,
+    paymentDetails: details,
+    stockWarnings: Array.isArray(details.stock_warnings) ? details.stock_warnings : [],
+    razorpayOrderId: row.razorpay_order_id || null,
+    razorpayPaymentId: row.razorpay_payment_id || null
+  };
+}
+
+async function calculateAuthoritativeOrder(items, promoCode) {
   if (!Array.isArray(items) || items.length === 0) {
     throw { status: 400, message: 'Cart items are required' };
   }
@@ -314,7 +413,7 @@ async function calculateAuthoritativeOrder(items) {
 
   // Authoritative catalog lookup from database
   const idFilter = `id=in.(${productIds.map(encodeURIComponent).join(',')})`;
-  const dbProducts = await supabaseQuery(`products?${idFilter}&select=id,name,price,stock_qty,in_stock,size_stock,image_primary`);
+  const dbProducts = await supabaseQuery(`products?${idFilter}&select=id,name,price,stock_qty,in_stock,sizes,size_stock,image_primary`);
 
   const productMap = new Map((dbProducts || []).map(p => [p.id, p]));
 
@@ -332,7 +431,22 @@ async function calculateAuthoritativeOrder(items) {
 
     const size = (clientItem.size || 'M').trim();
     const sizeStock = dbProduct.size_stock || {};
-    const availableForSize = sizeStock[size] !== undefined ? parseInt(sizeStock[size], 10) : dbProduct.stock_qty;
+
+    // The size the customer picked has to be one the product actually stocks. The old fallback —
+    // `sizeStock[size] !== undefined ? sizeStock[size] : dbProduct.stock_qty` — measured an unknown
+    // size against the product's whole stock and let the order through. Sizes differ per product
+    // (tm-005 stocks no S, for example), and decrement_product_stock reads
+    // COALESCE((size_stock ->> p_size)::int, 0), so an unstocked size is 0 there and the RPC
+    // returns false. The result was a captured payment with no inventory movement. Reject it here,
+    // before Razorpay is ever contacted.
+    const offeredSizes = Array.isArray(dbProduct.sizes) ? dbProduct.sizes.map(s => String(s).trim()) : [];
+    if (offeredSizes.length > 0 && !offeredSizes.includes(size)) {
+      throw { status: 400, message: `"${dbProduct.name}" is not offered in size ${size}. Available: ${offeredSizes.join(', ')}` };
+    }
+    if (sizeStock[size] === undefined) {
+      throw { status: 400, message: `Size ${size} is not available for "${dbProduct.name}"` };
+    }
+    const availableForSize = parseInt(sizeStock[size], 10) || 0;
 
     const qty = Math.max(1, Math.min(10, parseInt(clientItem.qty, 10) || 1));
     if (availableForSize < qty) {
@@ -353,13 +467,29 @@ async function calculateAuthoritativeOrder(items) {
   }
 
   const config = getPaymentConfig();
+  const promo = resolvePromo(promoCode);
+
+  let discount = 0;
+  let appliedPromo = null;
+  if (promo) {
+    if (subtotal < promo.minSubtotal) {
+      throw { status: 400, message: `Promo ${promo.code} requires a minimum subtotal of ₹${promo.minSubtotal}` };
+    }
+    discount = Math.round(subtotal * (promo.percent / 100));
+    appliedPromo = { code: promo.code, percent: promo.percent, amount: discount };
+  }
+
+  // Free-shipping threshold is judged on the gross subtotal so a promo code can never push an
+  // order back into paying shipping. Matches store.getCartTotal() in the browser.
   const shipping = (subtotal >= 2499 || subtotal === 0) ? 0 : 99;
-  const tax = config.enableGST ? Math.round(subtotal * (config.gstRate || 0.12)) : 0;
-  const total = subtotal + shipping + tax;
+  const tax = config.enableGST ? Math.round((subtotal - discount) * (config.gstRate || 0.12)) : 0;
+  const total = subtotal - discount + shipping + tax;
 
   return {
     verifiedItems,
     subtotal,
+    discount,
+    appliedPromo,
     shipping,
     tax,
     total,
@@ -406,16 +536,42 @@ async function settleRazorpayOrder(razorpayOrderId, razorpayPaymentId, paidAmoun
 
   // Atomically decrement stock strictly on successful state transition
   const items = Array.isArray(settledOrder.items) ? settledOrder.items : JSON.parse(settledOrder.items || '[]');
+  // decrementStockRpc returns false both when the RPC call fails and when the SQL function itself
+  // returns false (insufficient stock / unknown product / unknown size). Discarding that boolean
+  // silently oversold: the payment is already captured at this point, so the only honest thing to
+  // do is record the failure on the order so the merchant sees it before dispatch. Nothing here
+  // may throw — the customer's money is taken and the row is already PAID.
+  const stockWarnings = [];
   for (const item of items) {
     const productId = item.id || item.productId;
     const size = item.size || 'M';
     const qty = Math.max(1, parseInt(item.qty, 10) || 1);
-    if (productId) {
-      await decrementStockRpc(productId, size, qty);
+    if (!productId) {
+      stockWarnings.push({ productId: null, size, qty, reason: 'line item has no product id' });
+      continue;
+    }
+    const ok = await decrementStockRpc(productId, size, qty);
+    if (!ok) {
+      stockWarnings.push({ productId, size, qty, reason: 'stock decrement rejected — verify inventory before dispatch' });
     }
   }
 
-  return { success: true, alreadySettled: false, order: settledOrder };
+  if (stockWarnings.length > 0) {
+    console.error(`[OVERSELL RISK] Order ${settledOrder.id} is PAID but stock was not decremented:`, JSON.stringify(stockWarnings));
+    try {
+      const patched = await supabaseQuery(`orders?id=eq.${encodeURIComponent(settledOrder.id)}`, {
+        method: 'PATCH',
+        body: {
+          payment_details: { ...(settledOrder.payment_details || {}), stock_warnings: stockWarnings }
+        }
+      });
+      if (Array.isArray(patched) && patched.length > 0) settledOrder.payment_details = patched[0].payment_details;
+    } catch (patchErr) {
+      console.error(`Failed to persist stock warnings on order ${settledOrder.id}:`, patchErr);
+    }
+  }
+
+  return { success: true, alreadySettled: false, order: settledOrder, stockWarnings };
 }
 
 // MIME types for static asset serving
@@ -541,7 +697,12 @@ const server = http.createServer(async (req, res) => {
       isRazorpayConfigured: true,
       enableCOD: config.enableCOD !== false,
       enableGST: config.enableGST === true,
-      gstRate: config.gstRate || 0.12
+      gstRate: config.gstRate || 0.12,
+      // Published so the cart can show the same discount the server will actually charge, instead
+      // of keeping its own hardcoded copy that could drift from PROMO_CODES.
+      promoCodes: Object.fromEntries(
+        Object.entries(PROMO_CODES).map(([code, p]) => [code, { percent: p.percent, minSubtotal: p.minSubtotal }])
+      )
     }, req);
   }
 
@@ -553,9 +714,10 @@ const server = http.createServer(async (req, res) => {
       const auth = await verifyCustomer(req);
       const { parsed: body } = await parseBodyWithRaw(req);
       const items = body.items || [];
+      const shippingAddress = composeShippingAddress(body.shippingInfo);
 
       // Calculate authoritative server total from DB prices and stock
-      const calculation = await calculateAuthoritativeOrder(items);
+      const calculation = await calculateAuthoritativeOrder(items, body.promoCode);
 
       // Allocate the order id up front so it can travel as the Razorpay receipt, which is what
       // makes a dashboard payment traceable back to a row without a lookup table.
@@ -593,7 +755,7 @@ const server = http.createServer(async (req, res) => {
         customer_name: body.shippingInfo?.name || 'Customer',
         email: body.shippingInfo?.email || '',
         phone: auth.phone,
-        address: body.shippingInfo?.address || 'Direct Delivery',
+        address: shippingAddress,
         items: calculation.verifiedItems,
         subtotal: calculation.subtotal,
         shipping: calculation.shipping,
@@ -603,7 +765,7 @@ const server = http.createServer(async (req, res) => {
         razorpay_order_id: rzpData.id,
         payment_status: 'PENDING_PAYMENT',
         payment_method: 'Razorpay',
-        payment_details: {}
+        payment_details: calculation.appliedPromo ? { promo: calculation.appliedPromo } : {}
       };
 
       let finalOrderId = tmOrderId;
@@ -629,6 +791,12 @@ const server = http.createServer(async (req, res) => {
         tm_order_id: finalOrderId,
         amount: calculation.total,
         amount_paise: calculation.amountInPaise,
+        subtotal: calculation.subtotal,
+        discount: calculation.discount,
+        promo: calculation.appliedPromo,
+        shipping: calculation.shipping,
+        tax: calculation.tax,
+        address: shippingAddress,
         currency: 'INR',
         key_id: RAZORPAY_KEY_ID
       }, req);
@@ -647,7 +815,15 @@ const server = http.createServer(async (req, res) => {
       const items = body.items || [];
       const paymentMethod = body.paymentMethod === 'COD' ? 'COD' : 'UPI';
 
-      const calculation = await calculateAuthoritativeOrder(items);
+      // COD is a merchant setting. The browser only hides the COD tab when enableCOD is false;
+      // anything that posts paymentMethod:'COD' directly would otherwise create an unpaid
+      // COD_PENDING order on a store that has COD switched off.
+      if (paymentMethod === 'COD' && !getPaymentConfig().enableCOD) {
+        return sendJSON(res, 400, { error: 'Cash on Delivery is not available for this store' }, req);
+      }
+
+      const shippingAddress = composeShippingAddress(body.shippingInfo);
+      const calculation = await calculateAuthoritativeOrder(items, body.promoCode);
 
       const initialPaymentStatus = paymentMethod === 'COD' ? 'COD_PENDING' : 'PENDING_VERIFICATION';
 
@@ -657,7 +833,7 @@ const server = http.createServer(async (req, res) => {
         customer_name: body.shippingInfo?.name || 'Customer',
         email: body.shippingInfo?.email || '',
         phone: auth.phone,
-        address: body.shippingInfo?.address || 'Direct Delivery',
+        address: shippingAddress,
         items: calculation.verifiedItems,
         subtotal: calculation.subtotal,
         shipping: calculation.shipping,
@@ -666,14 +842,17 @@ const server = http.createServer(async (req, res) => {
         status: 'Processing (Online Dispatch)',
         payment_status: initialPaymentStatus,
         payment_method: paymentMethod,
-        payment_details: body.paymentDetails || {}
+        payment_details: {
+          ...(body.paymentDetails || {}),
+          ...(calculation.appliedPromo ? { promo: calculation.appliedPromo } : {})
+        }
       });
 
       const { id: createdId, row: createdRow } = await insertOrderWithUniqueId(buildOrderRow);
 
       return sendJSON(res, 200, {
         success: true,
-        order: createdRow || buildOrderRow(createdId)
+        order: toClientOrder(createdRow || buildOrderRow(createdId))
       }, req);
     } catch (err) {
       return sendOrderFailure(res, req, err, 'Create order failed');
@@ -928,20 +1107,45 @@ const server = http.createServer(async (req, res) => {
 
       const confirmedOrder = updatedOrders[0];
 
-      // Decrement stock atomically
+      // Decrement stock atomically. As in settleRazorpayOrder, a false return means the decrement
+      // did NOT happen — the admin must be told, not shown an unconditional "Stock decremented."
       const items = Array.isArray(confirmedOrder.items) ? confirmedOrder.items : JSON.parse(confirmedOrder.items || '[]');
+      const stockWarnings = [];
       for (const item of items) {
         const productId = item.id || item.productId;
         const size = item.size || 'M';
         const qty = Math.max(1, parseInt(item.qty, 10) || 1);
-        if (productId) {
-          await decrementStockRpc(productId, size, qty);
+        if (!productId) {
+          stockWarnings.push({ productId: null, size, qty, reason: 'line item has no product id' });
+          continue;
+        }
+        const ok = await decrementStockRpc(productId, size, qty);
+        if (!ok) {
+          stockWarnings.push({ productId, size, qty, reason: 'stock decrement rejected — verify inventory before dispatch' });
+        }
+      }
+
+      if (stockWarnings.length > 0) {
+        console.error(`[OVERSELL RISK] Order ${confirmedOrder.id} confirmed PAID but stock was not decremented:`, JSON.stringify(stockWarnings));
+        try {
+          const patched = await supabaseQuery(`orders?id=eq.${encodeURIComponent(order_id)}`, {
+            method: 'PATCH',
+            body: {
+              payment_details: { ...(confirmedOrder.payment_details || {}), stock_warnings: stockWarnings }
+            }
+          });
+          if (Array.isArray(patched) && patched.length > 0) confirmedOrder.payment_details = patched[0].payment_details;
+        } catch (patchErr) {
+          console.error(`Failed to persist stock warnings on order ${confirmedOrder.id}:`, patchErr);
         }
       }
 
       return sendJSON(res, 200, {
         success: true,
-        message: 'Payment verified and order marked PAID. Stock decremented.',
+        message: stockWarnings.length === 0
+          ? 'Payment verified and order marked PAID. Stock decremented.'
+          : `Payment verified and order marked PAID, but stock was NOT decremented for ${stockWarnings.length} item(s). Check inventory before dispatch.`,
+        stockWarnings,
         order: confirmedOrder
       }, req);
     } catch (err) {
@@ -984,10 +1188,21 @@ const server = http.createServer(async (req, res) => {
         }
       });
 
+      // A zero-row PATCH means the guard `payment_status=in.(...)` didn't match — the order is
+      // already PAID or already FAILED. Reporting success here told the admin they had rejected a
+      // UTR when nothing changed, so a settled order stayed settled while the dashboard implied
+      // otherwise. Report the real outcome instead.
+      if (!updatedOrders || updatedOrders.length === 0) {
+        return sendJSON(res, 409, {
+          error: `Order cannot be rejected from its current state (${targetOrder.payment_status}). Only PENDING_VERIFICATION, COD_PENDING or PENDING_PAYMENT orders can be rejected.`,
+          order: targetOrder
+        }, req);
+      }
+
       return sendJSON(res, 200, {
         success: true,
         message: 'Order marked as FAILED',
-        order: updatedOrders ? updatedOrders[0] : targetOrder
+        order: updatedOrders[0]
       }, req);
     } catch (err) {
       console.error('Reject payment error:', err);
@@ -997,7 +1212,30 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ---------------------------------------------------
-  // Route 11: Static File Serving & Hardened SPA Routing
+  // Route 11: GET /api/admin/orders (Admin Order List)
+  // ---------------------------------------------------
+  // The admin dashboard used to read orders from its own browser localStorage, so the owner only
+  // ever saw orders that happened to be placed in that same browser profile. Orders from real
+  // customers were invisible — including every UPI order awaiting UTR verification, which meant
+  // the Confirm Paid / Reject UTR buttons never rendered and no UPI order could ever be settled.
+  // This route is the authoritative read. Rows are mapped to the camelCase shape the dashboard
+  // renderer already expects by toClientOrder(), which also coerces NUMERIC columns to numbers
+  // (PostgREST returns them as strings, so `sum + o.total` would otherwise concatenate).
+  if (req.method === 'GET' && reqUrl === '/api/admin/orders') {
+    try {
+      await requireAdmin(req);
+      const rows = await supabaseQuery('orders?select=*&order=created_at.desc&limit=500');
+      const orders = (rows || []).map(toClientOrder);
+      return sendJSON(res, 200, { success: true, orders }, req);
+    } catch (err) {
+      console.error('Admin orders fetch error:', err);
+      const status = err.status || 500;
+      return sendJSON(res, status, { error: err.message || 'Internal Server Error' }, req);
+    }
+  }
+
+  // ---------------------------------------------------
+  // Route 12: Static File Serving & Hardened SPA Routing
   // ---------------------------------------------------
   handleStaticFile(req, res, reqUrl);
 });
