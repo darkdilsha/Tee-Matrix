@@ -467,12 +467,15 @@ class StoreService {
       highlights: highlights,
       modelImageType: productData.modelImageType || 'product_only',
       badge: productData.badge || "NEW"
-    };
-    delete newProduct.gsm;
+    };    delete newProduct.gsm;
     products.unshift(newProduct);
     localStorage.setItem('tm_products', JSON.stringify(products));
     this.notify();
-    supabaseService.saveProduct(newProduct);
+    supabaseService.saveProduct(newProduct).then(res => {
+      if (res && res.success === false) {
+        this.showToast(`Warning: Product saved locally but failed to sync with database: ${res.message}`, 'error');
+      }
+    });
     return newProduct;
   }
 
@@ -526,16 +529,20 @@ class StoreService {
     });
     localStorage.setItem('tm_products', JSON.stringify(products));
     this.notify();
-    if (updatedProduct) supabaseService.saveProduct(updatedProduct);
+    if (updatedProduct) {
+      supabaseService.saveProduct(updatedProduct).then(res => {
+        if (res && res.success === false) {
+          this.showToast(`Warning: Product updated locally but failed to sync with database: ${res.message}`, 'error');
+        }
+      });
+    }
   }
 
   toggleNewArrival(id) {
     let target = null;
     const products = this.getProducts().map(p => {
       if (p.id === id) {
-        const nextState = !p.isNewArrival;
-        this.showToast(nextState ? `Added "${p.name}" to New Arrivals` : `Removed "${p.name}" from New Arrivals`);
-        target = { ...p, isNewArrival: nextState };
+        target = { ...p, isNewArrival: !p.isNewArrival };
         return target;
       }
       return p;

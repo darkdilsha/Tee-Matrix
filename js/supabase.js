@@ -253,6 +253,26 @@ export class SupabaseService {
   }
 
   async saveProduct(product) {
+    const token = await this.getAccessToken();
+    // 1. Try server endpoint with service-role write
+    if (token) {
+      try {
+        const res = await fetch('/api/admin/save-product', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ product })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.success) return { success: true, product: data.product };
+        }
+      } catch (_) {}
+    }
+
+    // 2. Direct client-side Supabase upsert fallback
     try {
       const row = {
         id: product.id,
@@ -278,18 +298,43 @@ export class SupabaseService {
       };
 
       const { data, error } = await supabase.from('products').upsert([row]);
-      if (error) console.warn('Supabase upsert product error:', error.message);
+      if (error) {
+        console.warn('Supabase upsert product error:', error.message);
+        return { success: false, message: error.message };
+      }
+      return { success: true };
     } catch (e) {
       console.warn('Supabase save product error:', e);
+      return { success: false, message: e.message };
     }
   }
 
   async deleteProduct(id) {
+    const token = await this.getAccessToken();
+    if (token) {
+      try {
+        const res = await fetch('/api/admin/delete-product', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ id })
+        });
+        if (res.ok) return { success: true };
+      } catch (_) {}
+    }
+
     try {
       const { error } = await supabase.from('products').delete().eq('id', id);
-      if (error) console.warn('Supabase delete product error:', error.message);
+      if (error) {
+        console.warn('Supabase delete product error:', error.message);
+        return { success: false, message: error.message };
+      }
+      return { success: true };
     } catch (e) {
       console.warn('Supabase delete product error:', e);
+      return { success: false, message: e.message };
     }
   }
 

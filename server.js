@@ -1328,6 +1328,79 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ---------------------------------------------------
+  // Route 12: POST /api/admin/save-product (Admin Product Upsert via Service Role)
+  // ---------------------------------------------------
+  if (req.method === 'POST' && reqUrl === '/api/admin/save-product') {
+    try {
+      await requireAdmin(req);
+      const { parsed: body } = await parseBodyWithRaw(req);
+      const product = body.product;
+      if (!product || !product.id || !product.name) {
+        return sendJSON(res, 400, { error: 'Product payload requires an id and name' }, req);
+      }
+
+      const row = {
+        id: product.id,
+        name: product.name,
+        category: product.category || 'Graphic',
+        price: Number(product.price) || 0,
+        fit: product.fit || 'Boxy Oversized Fit',
+        fabric: product.fabric || '100% Cotton',
+        description: product.description || '',
+        highlights: Array.isArray(product.highlights) ? product.highlights : [],
+        sizes: Array.isArray(product.sizes) ? product.sizes : ['S', 'M', 'L', 'XL'],
+        size_stock: typeof product.sizeStock === 'object' && product.sizeStock !== null ? product.sizeStock : {},
+        colors: Array.isArray(product.colors) ? product.colors : ['Black'],
+        image_primary: product.imagePrimary || (Array.isArray(product.images) && product.images[0]) || '',
+        image_hover: product.imageHover || (Array.isArray(product.images) && product.images[1]) || '',
+        images: Array.isArray(product.images) ? product.images : [],
+        in_stock: product.inStock !== undefined ? !!product.inStock : true,
+        stock_qty: Number(product.stockQty) || 0,
+        badge: product.badge || 'NEW',
+        is_featured: !!product.isFeatured,
+        is_new_arrival: product.isNewArrival !== undefined ? !!product.isNewArrival : true,
+        model_image_type: product.modelImageType || 'product_only'
+      };
+
+      const upserted = await supabaseQuery('products', {
+        method: 'POST',
+        headers: { 'Prefer': 'resolution=merge-duplicates,return=representation' },
+        body: [row]
+      });
+
+      return sendJSON(res, 200, { success: true, product: upserted ? upserted[0] : row }, req);
+    } catch (err) {
+      console.error('Save product error:', err);
+      const status = err.status || 500;
+      return sendJSON(res, status, { error: err.message || 'Failed to save product in database' }, req);
+    }
+  }
+
+  // ---------------------------------------------------
+  // Route 13: POST /api/admin/delete-product (Admin Product Delete via Service Role)
+  // ---------------------------------------------------
+  if (req.method === 'POST' && reqUrl === '/api/admin/delete-product') {
+    try {
+      await requireAdmin(req);
+      const { parsed: body } = await parseBodyWithRaw(req);
+      const { id } = body;
+      if (!id) {
+        return sendJSON(res, 400, { error: 'Product id is required' }, req);
+      }
+
+      await supabaseQuery(`products?id=eq.${encodeURIComponent(id)}`, {
+        method: 'DELETE'
+      });
+
+      return sendJSON(res, 200, { success: true, message: 'Product deleted from database' }, req);
+    } catch (err) {
+      console.error('Delete product error:', err);
+      const status = err.status || 500;
+      return sendJSON(res, status, { error: err.message || 'Failed to delete product from database' }, req);
+    }
+  }
+
+  // ---------------------------------------------------
   // Route 12: Static File Serving & Hardened SPA Routing
   // ---------------------------------------------------
   handleStaticFile(req, res, reqUrl);
