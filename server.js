@@ -49,10 +49,12 @@ const REQUIRED_ENV_VARS = [
 
 const missingEnvVars = REQUIRED_ENV_VARS.filter(key => !process.env[key] || !process.env[key].trim());
 if (missingEnvVars.length > 0) {
-  console.error('\n[FATAL ERROR] Server boot refused. The following required environment variables are missing:');
+  console.error('\n[ENVIRONMENT NOTICE] The following required environment variables are not set:');
   missingEnvVars.forEach(v => console.error(`  - ${v}`));
-  console.error('Please configure all required environment variables before starting Tee Matrix server.\n');
-  process.exit(1);
+  if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    console.error('Please configure all required environment variables in .env before starting.\n');
+    process.exit(1);
+  }
 }
 
 // MERCHANT_UPI_VPA is a warning rather than a boot failure: Razorpay and COD checkout work
@@ -766,9 +768,13 @@ export async function handleRequest(req, res) {
 
   const reqUrl = req.url.split('?')[0];
 
-  // ---------------------------------------------------
-  // Route 1: GET /api/payment-config (Public Config)
-  // ---------------------------------------------------
+  // In cloud/serverless runtime, return clear descriptive error if credentials are not configured yet
+  if (missingEnvVars.length > 0 && reqUrl.startsWith('/api/')) {
+    return sendJSON(res, 500, {
+      success: false,
+      error: `Backend environment configuration incomplete. Missing variable(s): ${missingEnvVars.join(', ')}. Please configure them in your Vercel Project Settings -> Environment Variables.`
+    }, req);
+  }
   if (req.method === 'GET' && reqUrl === '/api/payment-config') {
     const config = getPaymentConfig();
     return sendJSON(res, 200, {
