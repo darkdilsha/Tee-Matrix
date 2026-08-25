@@ -1,5 +1,5 @@
 import { store } from './store.js';
-import { supabaseService } from './supabase.js';
+import { supabaseService, supabase } from './supabase.js';
 import { ProductImageAI } from './imageAI.js';
 
 export class AdminPanel {
@@ -174,17 +174,51 @@ export class AdminPanel {
         this.remoteOrders = [];
         return true;
       }
-      const res = await fetch('/api/admin/orders', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        this.ordersError = data.error || 'Failed to load orders';
-        this.remoteOrders = [];
-        return true;
-      }
-      this.remoteOrders = Array.isArray(data.orders) ? data.orders : [];
-      this.ordersError = null;
+
+      // 1. Try server endpoint first
+      try {
+        const res = await fetch('/api/admin/orders', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.success && Array.isArray(data.orders)) {
+            this.remoteOrders = data.orders;
+            this.ordersError = null;
+            return true;
+          }
+        }
+      } catch (_) {}
+
+      // 2. Direct Supabase query fallback for serverless deployments
+      try {
+        const { data, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+        if (!error && Array.isArray(data)) {
+          this.remoteOrders = data.map(o => ({
+            id: o.id,
+            phoneNumber: o.phone_number,
+            customerName: o.customer_name,
+            email: o.email || '',
+            phone: o.phone || '',
+            address: o.address,
+            items: o.items || [],
+            subtotal: o.subtotal,
+            shipping: o.shipping,
+            tax: o.tax,
+            total: o.total,
+            status: o.status,
+            paymentStatus: o.payment_status,
+            paymentMethod: o.payment_method,
+            paymentDetails: o.payment_details || {},
+            createdAt: o.created_at
+          }));
+          this.ordersError = null;
+          return true;
+        }
+      } catch (_) {}
+
+      this.ordersError = 'Could not load orders from server or database';
+      this.remoteOrders = [];
       return true;
     } catch (err) {
       this.ordersError = 'Network error while loading orders';
