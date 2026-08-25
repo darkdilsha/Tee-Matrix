@@ -17,62 +17,47 @@ export class AccountModal {
     this.activeTab = initialTab;
     const customer = store.getCurrentCustomer();
     if (!customer) {
-      authModal.open('login', 'Please verify your phone number to view your Account Dashboard');
+      authModal.open('login', 'Please sign in to view your Account Dashboard', null, 'openAccount');
       return;
     }
 
     // Load initial addresses and payment methods
-    await this.loadCustomerData(customer.phone);
+    await this.loadCustomerData(customer);
     this.render(customer);
   }
 
-  async loadCustomerData(phone) {
+  // Remote reads are keyed on the verified phone (that's what the RLS policies match on), but the
+  // localStorage namespace uses store.getCustomerKey() — a Google session has no phone, and keying
+  // localStorage on an empty string would put every phoneless customer on this browser into one
+  // shared bucket.
+  async loadCustomerData(customer) {
+    const phone = customer.phone || '';
+    const key = store.getCustomerKey();
+
     // Addresses
-    const remoteAddrs = await supabaseService.fetchUserAddresses(phone);
+    const remoteAddrs = phone ? await supabaseService.fetchUserAddresses(phone) : null;
     if (remoteAddrs) {
       this.addresses = remoteAddrs;
     } else {
-      const local = localStorage.getItem(`tm_addrs_${phone}`);
-      this.addresses = local ? JSON.parse(local) : [
-        {
-          id: 'addr-1',
-          name: store.getCurrentCustomer()?.name || 'Customer Name',
-          phone: phone,
-          addressLine: '104 Urban Highrise, Cyber District',
-          city: 'New Delhi',
-          state: 'Delhi',
-          pincode: '110001',
-          isDefault: true
-        }
-      ];
+      const local = localStorage.getItem(`tm_addrs_${key}`);
+      this.addresses = local ? JSON.parse(local) : [];
     }
 
     // Payment Methods
-    const remotePMs = await supabaseService.fetchUserPaymentMethods(phone);
+    const remotePMs = phone ? await supabaseService.fetchUserPaymentMethods(phone) : null;
     if (remotePMs) {
       this.paymentMethods = remotePMs;
     } else {
-      const localPM = localStorage.getItem(`tm_pms_${phone}`);
-      this.paymentMethods = localPM ? JSON.parse(localPM) : [
-        {
-          id: 'pm-1',
-          type: 'UPI',
-          maskedIdentifier: 'member@okicici',
-          isDefault: true
-        },
-        {
-          id: 'pm-2',
-          type: 'CARD',
-          maskedIdentifier: 'Visa ending in 4242',
-          isDefault: false
-        }
-      ];
+      const localPM = localStorage.getItem(`tm_pms_${key}`);
+      this.paymentMethods = localPM ? JSON.parse(localPM) : [];
     }
   }
 
-  saveLocalData(phone) {
-    localStorage.setItem(`tm_addrs_${phone}`, JSON.stringify(this.addresses));
-    localStorage.setItem(`tm_pms_${phone}`, JSON.stringify(this.paymentMethods));
+  saveLocalData() {
+    const key = store.getCustomerKey();
+    if (!key) return;
+    localStorage.setItem(`tm_addrs_${key}`, JSON.stringify(this.addresses));
+    localStorage.setItem(`tm_pms_${key}`, JSON.stringify(this.paymentMethods));
   }
 
   close() {
@@ -92,11 +77,18 @@ export class AccountModal {
       document.body.appendChild(backdrop);
     }
 
-    const orders = store.getOrders().filter(o => 
-      (o.phone && o.phone.includes(customer.phone.slice(-10))) || 
-      (o.phone_number && o.phone_number.includes(customer.phone.slice(-10))) ||
-      o.customerName === customer.name
-    );
+    // Match on the Supabase user id first — that is the account identity for both providers.
+    // The phone comparison is the fallback for orders written before user_id was recorded, and is
+    // skipped entirely when the session has no phone: `''.includes('')` is true, so the old filter
+    // showed a Google customer every order in the store.
+    const customerDigits = (customer.phone || '').replace(/\D/g, '').slice(-10);
+    const orders = store.getOrders().filter(o => {
+      const orderUserId = o.paymentDetails?.user_id || o.payment_details?.user_id;
+      if (customer.userId && orderUserId) return orderUserId === customer.userId;
+      if (!customerDigits) return false;
+      const orderDigits = (o.phone || o.phoneNumber || o.phone_number || '').replace(/\D/g, '');
+      return orderDigits.includes(customerDigits);
+    });
 
     backdrop.innerHTML = `
       <div class="modal-content glass-panel" style="max-width: 820px; padding: 2.5rem; border: 1px solid var(--border-color); color: #fff;">
@@ -116,7 +108,7 @@ export class AccountModal {
             <div>
               <span class="section-tag" style="color: var(--accent-gold);">YOUR ACCOUNT DASHBOARD</span>
               <h2 class="brand-font" style="font-size: 1.8rem; color: #fff; margin: 0.1rem 0;">${customer.name.toUpperCase()}</h2>
-              <span style="font-size: 0.85rem; color: var(--text-secondary);">${customer.phone}</span>
+              <span style="font-size: 0.85rem; color: var(--text-secondary);">${customer.phone || customer.email || ''}</span>
             </div>
           </div>
 
@@ -164,14 +156,18 @@ export class AccountModal {
             </div>
 
             <div>
-              <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem;">MOBILE PHONE NUMBER (VERIFIED OTP)</label>
-              <input type="text" disabled class="input-field" value="${customer.phone}" style="opacity: 0.7; cursor: not-allowed;" />
+              <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem;">
+                ${customer.phone ? 'MOBILE PHONE NUMBER (VERIFIED OTP)' : 'EMAIL ADDRESS (VERIFIED VIA GOOGLE)'}
+              </label>
+              <input type="text" disabled class="input-field" value="${customer.phone || customer.email || ''}" style="opacity: 0.7; cursor: not-allowed;" />
             </div>
 
-            <div>
-              <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem;">EMAIL ADDRESS (OPTIONAL)</label>
-              <input type="email" id="profEmail" class="input-field" value="${customer.email || ''}" placeholder="your.email@domain.com" />
-            </div>
+            ${customer.phone ? `
+              <div>
+                <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem;">EMAIL ADDRESS (OPTIONAL)</label>
+                <input type="email" id="profEmail" class="input-field" value="${customer.email || ''}" placeholder="your.email@domain.com" />
+              </div>
+            ` : ''}
 
             <button type="submit" class="btn-primary" style="margin-top: 0.5rem; padding: 1rem 2rem; align-self: flex-start;">
               SAVE PROFILE CHANGES
@@ -272,7 +268,7 @@ export class AccountModal {
                 <line x1="3" y1="6" x2="21" y2="6"></line>
               </svg>
               <h4 style="color: #fff; font-size: 1rem; margin-bottom: 0.25rem;">No Past Orders Found</h4>
-              <p style="color: var(--text-muted); font-size: 0.8rem;">Orders placed with your verified phone number will appear here.</p>
+              <p style="color: var(--text-muted); font-size: 0.8rem;">Orders placed with this account will appear here.</p>
             </div>
           ` : `
             <div style="display: flex; flex-direction: column; gap: 1rem; max-height: 420px; overflow-y: auto;">
@@ -331,9 +327,12 @@ export class AccountModal {
     document.getElementById('editProfileForm')?.addEventListener('submit', (e) => {
       e.preventDefault();
       const name = document.getElementById('profName').value.trim();
-      const email = document.getElementById('profEmail').value.trim();
+      // profEmail only exists for phone sessions; a Google session's email is read-only.
+      const emailEl = document.getElementById('profEmail');
+      const update = { name };
+      if (emailEl) update.email = emailEl.value.trim();
 
-      store.updateCustomerProfile({ name, email });
+      store.updateCustomerProfile(update);
       this.render(store.getCurrentCustomer());
     });
 
@@ -347,7 +346,7 @@ export class AccountModal {
       btn.addEventListener('click', () => {
         const id = btn.getAttribute('data-id');
         this.addresses.forEach(a => a.isDefault = (a.id === id));
-        this.saveLocalData(customer.phone);
+        this.saveLocalData();
         this.render(customer);
       });
     });
@@ -356,7 +355,7 @@ export class AccountModal {
       btn.addEventListener('click', () => {
         const id = btn.getAttribute('data-id');
         this.addresses = this.addresses.filter(a => a.id !== id);
-        this.saveLocalData(customer.phone);
+        this.saveLocalData();
         this.render(customer);
       });
     });
@@ -371,7 +370,7 @@ export class AccountModal {
       btn.addEventListener('click', () => {
         const id = btn.getAttribute('data-id');
         this.paymentMethods.forEach(pm => pm.isDefault = (pm.id === id));
-        this.saveLocalData(customer.phone);
+        this.saveLocalData();
         this.render(customer);
       });
     });
@@ -380,7 +379,7 @@ export class AccountModal {
       btn.addEventListener('click', () => {
         const id = btn.getAttribute('data-id');
         this.paymentMethods = this.paymentMethods.filter(pm => pm.id !== id);
-        this.saveLocalData(customer.phone);
+        this.saveLocalData();
         this.render(customer);
       });
     });
@@ -462,7 +461,7 @@ export class AccountModal {
       }
 
       this.addresses.push(newAddr);
-      this.saveLocalData(customer.phone);
+      this.saveLocalData();
       close();
       this.render(customer);
       store.showToast('Address saved');
@@ -523,7 +522,7 @@ export class AccountModal {
       }
 
       this.paymentMethods.push(newPM);
-      this.saveLocalData(customer.phone);
+      this.saveLocalData();
       close();
       this.render(customer);
       store.showToast('Payment reference saved');

@@ -3,6 +3,11 @@
     {
       "source": "/api/:path*",
       "destination": "https://REPLACE-WITH-YOUR-RENDER-HOST.onrender.com/api/:path*"
-    }
+    },
+    { "source": "/privacy-policy", "destination": "/index.html" },
+    { "source": "/terms-and-conditions", "destination": "/index.html" },
+    { "source": "/shipping-policy", "destination": "/index.html" },
+    { "source": "/refund-policy", "destination": "/index.html" },
+    { "source": "/return-policy", "destination": "/index.html" }
   ]
 }

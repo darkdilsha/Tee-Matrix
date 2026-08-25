@@ -393,7 +393,7 @@ export class ProductDetailModal {
       }
 
       if (!store.isCustomerLoggedIn()) {
-        authModal.open('login', 'Please verify mobile OTP to add items to cart', () => {
+        authModal.open('login', 'Please sign in to add items to cart', () => {
           const added = store.addToCart(product.id, this.selectedSize, this.qty);
           if (added) this.close();
         });
@@ -439,9 +439,9 @@ export class ProductDetailModal {
 
       this.close();
       if (!store.isCustomerLoggedIn()) {
-        authModal.open('login', 'Please log in with mobile OTP to proceed with Instant Buy', () => {
+        authModal.open('login', 'Please sign in to proceed with Instant Buy', () => {
           window.dispatchEvent(new CustomEvent('openCheckout'));
-        });
+        }, 'openCheckout');
         return;
       }
       window.dispatchEvent(new CustomEvent('openCheckout'));

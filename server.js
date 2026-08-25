@@ -253,24 +253,45 @@ async function verifyCustomer(req) {
   }
 
   const user = await userRes.json();
-  // Only the top-level `phone` claim is trustworthy. user_metadata (raw_user_meta_data) is
-  // client-writable via supabase.auth.updateUser({ data: {...} }) with nothing but the
-  // publishable key, so reading a phone from it would let any session claim any identity —
-  // including a seeded admin number. jwt_phone_digits() in the DB reads only auth.jwt()->>'phone'
-  // for exactly this reason, and every request here uses the service-role key, so RLS never gets
-  // a chance to reject a forged identity. Keep this in sync with the DB helper.
+  // Only the top-level `phone` and `email` claims are trustworthy. user_metadata
+  // (raw_user_meta_data) is client-writable via supabase.auth.updateUser({ data: {...} }) with
+  // nothing but the publishable key, so reading an identity from it would let any session claim
+  // any identity — including a seeded admin number. jwt_phone_digits() in the DB reads only
+  // auth.jwt()->>'phone' for exactly this reason, and every request here uses the service-role
+  // key, so RLS never gets a chance to reject a forged identity. Keep this in sync with the DB
+  // helper.
+  //
+  // A session must prove one of the two. Phone OTP sessions carry a verified phone and no email;
+  // Google sessions carry a verified email and no phone. `email_confirmed_at` is set by GoTrue,
+  // not by the client, so it is as server-verified as the phone claim. The Supabase user id is
+  // what actually identifies the account downstream — the phone on an order is a delivery
+  // contact typed into the checkout form, not an identity.
   const rawPhone = user.phone || '';
   const phoneDigits = rawPhone.replace(/\D/g, '');
-  if (!phoneDigits) {
-    throw { status: 401, message: 'No verified phone number found on authenticated session' };
+  const email = (user.email || '').trim().toLowerCase();
+  const emailVerified = !!email && !!(user.email_confirmed_at || user.confirmed_at);
+  if (!phoneDigits && !emailVerified) {
+    throw { status: 401, message: 'No verified phone number or email found on authenticated session' };
+  }
+  if (!user.id) {
+    throw { status: 401, message: 'Authenticated session is missing a user id' };
   }
 
-  return { user, phone: rawPhone, phoneDigits, token };
+  const provider = (user.app_metadata && user.app_metadata.provider) || (phoneDigits ? 'phone' : 'email');
+
+  return { user, userId: user.id, phone: rawPhone, phoneDigits, email, provider, token };
 }
 
 // Admin Auth Verification
 async function requireAdmin(req) {
   const auth = await verifyCustomer(req);
+  // Admin is phone-only. verifyCustomer used to throw for an empty phone, which implicitly
+  // protected this; now that an email session is a valid customer, the guard has to be explicit.
+  // Without it, an admin_numbers row holding whitespace would reduce to '' === '' and match any
+  // Google session. The DB's is_admin() guards the same way with jwt_phone_digits() <> ''.
+  if (!auth.phoneDigits) {
+    throw { status: 403, message: 'Administrator access requires a verified mobile number' };
+  }
   const admins = await supabaseQuery('admin_numbers?select=*');
   const isAdmin = Array.isArray(admins) && admins.some(a => (a.phone || '').replace(/\D/g, '') === auth.phoneDigits);
   if (!isAdmin) {
@@ -331,6 +352,50 @@ function composeShippingAddress(shippingInfo) {
 
   const state = get('state');
   return [street, city, state, zip].filter(Boolean).join(', ');
+}
+
+// Delivery phone for the order row.
+//
+// This used to be auth.phone — the verified OTP claim — which worked only because the only way to
+// log in was SMS. A Google session has no phone claim, and orders.phone_number is NOT NULL, so the
+// number now comes from the checkout form (#shipPhone, already `required` client-side).
+//
+// That makes it ordinary user input rather than a verified claim, so it is validated here: it is
+// the merchant's only way to reach the buyer about a delivery, and an unusable number means a paid
+// order that cannot be fulfilled. The verified claim is still preferred as a fallback for phone-OTP
+// sessions that don't send one.
+function resolveDeliveryPhone(shippingInfo, auth) {
+  const typed = (shippingInfo?.phone || '').toString();
+  const raw = typed.replace(/\D/g, '') || auth.phoneDigits || '';
+
+  // Accept 10-digit local, 91-prefixed (12), or 0-prefixed (11) forms and normalise to 10 digits.
+  let digits = raw;
+  if (digits.length === 12 && digits.startsWith('91')) digits = digits.slice(2);
+  else if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
+
+  if (!/^[6-9]\d{9}$/.test(digits)) {
+    throw {
+      status: 400,
+      message: 'A valid 10-digit Indian mobile number is required for delivery updates'
+    };
+  }
+  return { digits, e164: `+91${digits}` };
+}
+
+// Does this authenticated session own this order?
+//
+// payment_details.user_id is checked first because it is the account identity for both providers.
+// The phone-digit comparison is kept as a fallback so orders written before user_id was recorded
+// still resolve for their phone-OTP owners. A Google session has no phone digits, so the fallback
+// is skipped entirely for it — otherwise '' would match any order with an unparseable number.
+function ownsOrder(order, auth) {
+  const details = (order && typeof order.payment_details === 'object' && order.payment_details) || {};
+  if (details.user_id && auth.userId) {
+    return details.user_id === auth.userId;
+  }
+  if (!auth.phoneDigits) return false;
+  const orderDigits = (order.phone_number || order.phone || '').replace(/\D/g, '').slice(-10);
+  return !!orderDigits && orderDigits === auth.phoneDigits.slice(-10);
 }
 
 // Authoritative Price & Stock Calculation Helper
@@ -715,6 +780,7 @@ const server = http.createServer(async (req, res) => {
       const { parsed: body } = await parseBodyWithRaw(req);
       const items = body.items || [];
       const shippingAddress = composeShippingAddress(body.shippingInfo);
+      const deliveryPhone = resolveDeliveryPhone(body.shippingInfo, auth);
 
       // Calculate authoritative server total from DB prices and stock
       const calculation = await calculateAuthoritativeOrder(items, body.promoCode);
@@ -736,7 +802,7 @@ const server = http.createServer(async (req, res) => {
           receipt: tmOrderId,
           notes: {
             customer_name: body.shippingInfo?.name || '',
-            customer_phone: auth.phone
+            customer_phone: deliveryPhone.e164
           }
         })
       });
@@ -751,10 +817,10 @@ const server = http.createServer(async (req, res) => {
       // Persist order in Supabase with PENDING_PAYMENT status using service-role key
       const orderRow = {
         id: tmOrderId,
-        phone_number: auth.phone,
+        phone_number: deliveryPhone.digits,
         customer_name: body.shippingInfo?.name || 'Customer',
-        email: body.shippingInfo?.email || '',
-        phone: auth.phone,
+        email: body.shippingInfo?.email || auth.email || '',
+        phone: deliveryPhone.digits,
         address: shippingAddress,
         items: calculation.verifiedItems,
         subtotal: calculation.subtotal,
@@ -765,7 +831,12 @@ const server = http.createServer(async (req, res) => {
         razorpay_order_id: rzpData.id,
         payment_status: 'PENDING_PAYMENT',
         payment_method: 'Razorpay',
-        payment_details: calculation.appliedPromo ? { promo: calculation.appliedPromo } : {}
+        // user_id is the real account identity (either provider); phone_number is just delivery.
+        payment_details: {
+          user_id: auth.userId,
+          auth_provider: auth.provider,
+          ...(calculation.appliedPromo ? { promo: calculation.appliedPromo } : {})
+        }
       };
 
       let finalOrderId = tmOrderId;
@@ -823,16 +894,17 @@ const server = http.createServer(async (req, res) => {
       }
 
       const shippingAddress = composeShippingAddress(body.shippingInfo);
+      const deliveryPhone = resolveDeliveryPhone(body.shippingInfo, auth);
       const calculation = await calculateAuthoritativeOrder(items, body.promoCode);
 
       const initialPaymentStatus = paymentMethod === 'COD' ? 'COD_PENDING' : 'PENDING_VERIFICATION';
 
       const buildOrderRow = (id) => ({
         id,
-        phone_number: auth.phone,
+        phone_number: deliveryPhone.digits,
         customer_name: body.shippingInfo?.name || 'Customer',
-        email: body.shippingInfo?.email || '',
-        phone: auth.phone,
+        email: body.shippingInfo?.email || auth.email || '',
+        phone: deliveryPhone.digits,
         address: shippingAddress,
         items: calculation.verifiedItems,
         subtotal: calculation.subtotal,
@@ -842,9 +914,13 @@ const server = http.createServer(async (req, res) => {
         status: 'Processing (Online Dispatch)',
         payment_status: initialPaymentStatus,
         payment_method: paymentMethod,
+        // Client-supplied paymentDetails is spread first, then the server-derived identity is
+        // written last so a crafted body cannot spoof user_id/auth_provider.
         payment_details: {
           ...(body.paymentDetails || {}),
-          ...(calculation.appliedPromo ? { promo: calculation.appliedPromo } : {})
+          ...(calculation.appliedPromo ? { promo: calculation.appliedPromo } : {}),
+          user_id: auth.userId,
+          auth_provider: auth.provider
         }
       });
 
@@ -878,9 +954,8 @@ const server = http.createServer(async (req, res) => {
       }
 
       const targetOrder = orders[0];
-      const targetDigits = (targetOrder.phone_number || targetOrder.phone || '').replace(/\D/g, '');
-      if (targetDigits !== auth.phoneDigits) {
-        return sendJSON(res, 403, { error: 'Forbidden: Order does not belong to authenticated phone number' }, req);
+      if (!ownsOrder(targetOrder, auth)) {
+        return sendJSON(res, 403, { error: 'Forbidden: Order does not belong to authenticated account' }, req);
       }
 
       const updatedDetails = {

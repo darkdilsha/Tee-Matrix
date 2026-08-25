@@ -1,4 +1,5 @@
 import { store } from './store.js';
+import { supabaseService } from './supabase.js';
 import { LandingPage } from './landing.js';
 import { CatalogPage } from './catalog.js';
 import { ProductDetailModal } from './detail.js';
@@ -62,6 +63,64 @@ class App {
     window.addEventListener('popstate', () => {
       this.handleRoute();
     });
+
+    this.initAuthSync();
+  }
+
+  // OAuth is a full-page redirect, so the click handler that started sign-in is long gone by the
+  // time Google sends the browser back. supabase-js exchanges the ?code= itself (detectSessionInUrl
+  // defaults to true), and this picks up the resulting session and mirrors it into the local
+  // customer session — otherwise the customer lands back on the store still looking logged out.
+  initAuthSync() {
+    // onAuthStateChange also fires INITIAL_SESSION on load, which covers the plain refresh case.
+    supabaseService.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        // store.logoutCustomer() already cleared the local session in the normal path; this only
+        // matters when the Supabase session expires or is revoked elsewhere.
+        if (store.getCurrentCustomer()) {
+          localStorage.removeItem('tm_customer_session');
+          store.notify();
+        }
+        return;
+      }
+      if (session?.user) this.hydrateFromSupabase(session.user);
+    });
+
+    // Belt and braces: if the listener missed the initial event, ask directly.
+    supabaseService.getSupabaseUser().then(user => {
+      if (user) this.hydrateFromSupabase(user);
+    });
+  }
+
+  hydrateFromSupabase(user) {
+    const existing = store.getCurrentCustomer();
+    // Already hydrated for this same account — don't re-toast on every token refresh.
+    if (existing && existing.userId === user.id) {
+      this.replayPostLoginAction();
+      return;
+    }
+    // A different Supabase user than the one held locally means a fresh sign-in; overwrite.
+    const result = store.loginCustomerWithSupabaseUser(user, { silent: !!existing });
+    if (result.success) this.replayPostLoginAction();
+  }
+
+  // The intent the customer had before being sent to Google ("log in, then open checkout").
+  // authModal stows it in sessionStorage because a callback closure cannot survive the redirect.
+  replayPostLoginAction() {
+    let action = null;
+    try {
+      action = sessionStorage.getItem('tm_post_login_action');
+      if (action) sessionStorage.removeItem('tm_post_login_action');
+    } catch (_) {
+      return;
+    }
+    if (!action) return;
+
+    if (action === 'openCheckout') {
+      window.dispatchEvent(new CustomEvent('openCheckout'));
+    } else if (action === 'openAccount') {
+      accountModal.open();
+    }
   }
 
   handleRoute() {

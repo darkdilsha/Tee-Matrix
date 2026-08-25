@@ -308,7 +308,7 @@ export class PoliciesPage {
         <div>
           <h2 style="color: #fff; font-size: 1.25rem; margin-bottom: 0.6rem; font-family: var(--font-heading);">5. Cookies & Local Storage</h2>
           <p>
-            Our website uses browser cookies and local storage to retain your shopping bag contents, remember login sessions via mobile OTP, and offer a smooth checkout experience. You may disable cookies in your browser settings, though certain cart features may not function optimally.
+            Our website uses browser cookies and local storage to retain your shopping bag contents, remember your signed-in session, and offer a smooth checkout experience. You may disable cookies in your browser settings, though certain cart features may not function optimally.
           </p>
         </div>
 

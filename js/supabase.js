@@ -94,6 +94,58 @@ export class SupabaseService {
     }
   }
 
+  // 2b. Google OAuth Sign-In
+  // Phone OTP needs Twilio behind a TRAI DLT registration that is still pending, so Google is
+  // the login the store actually launches on. createClient defaults to detectSessionInUrl,
+  // which exchanges the ?code= on the return leg automatically — there is no callback route to
+  // write. redirectTo must be in the Supabase URL Configuration allowlist or Supabase sends the
+  // browser to the project's Site URL instead of back here.
+  async signInWithGoogle() {
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin + window.location.pathname
+        }
+      });
+      if (error) {
+        return { success: false, message: error.message };
+      }
+      // The browser is navigating away; nothing after this runs on the current page.
+      return { success: true, data };
+    } catch (err) {
+      return { success: false, message: err.message || 'Could not start Google sign-in' };
+    }
+  }
+
+  // Current Supabase user for either provider (phone OTP or Google), or null when signed out.
+  async getSupabaseUser() {
+    try {
+      const { data, error } = await supabase.auth.getUser();
+      if (error) return null;
+      return data?.user || null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Clear the Supabase session. Without this a local logout leaves the provider session alive
+  // and the next page load silently signs the customer back in.
+  async signOutSupabase() {
+    try {
+      await supabase.auth.signOut();
+      return { success: true };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  }
+
+  // Fires on SIGNED_IN / SIGNED_OUT / TOKEN_REFRESHED. Used to hydrate the local session once
+  // the OAuth redirect lands, so the customer does not have to refresh manually.
+  onAuthStateChange(callback) {
+    return supabase.auth.onAuthStateChange(callback);
+  }
+
   // 3. Verify Admin Access via Server-Side Session Verification
   async verifyAdminNumber(rawPhone) {
     const phone = this.formatPhone(rawPhone);
@@ -259,6 +311,11 @@ export class SupabaseService {
   }
 
   async saveUserAddress(phone, addressData) {
+    // The addresses RLS policy keys on jwt_phone_digits(), so a Google session (no phone claim)
+    // would be rejected by Postgres. Skip the remote write and let the caller persist locally.
+    if (!phone || !String(phone).replace(/\D/g, '')) {
+      return { success: true, id: addressData.id || newUuid(), localOnly: true };
+    }
     try {
       const row = {
         id: addressData.id || newUuid(),
@@ -300,6 +357,10 @@ export class SupabaseService {
   }
 
   async saveUserPaymentMethod(phone, pmData) {
+    // Same RLS constraint as saveUserAddress: no phone claim → skip the remote write.
+    if (!phone || !String(phone).replace(/\D/g, '')) {
+      return { success: true, id: pmData.id || newUuid(), localOnly: true };
+    }
     try {
       const row = {
         id: pmData.id || newUuid(),

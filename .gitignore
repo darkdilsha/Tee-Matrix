@@ -22,3 +22,5 @@ scratch/
 
 # Downloaded reference material (DLT / telecom operator PDFs) — not project source
 dlt_research/
+dlt_docs/
+dlt_src/

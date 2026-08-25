@@ -406,7 +406,7 @@ export class CatalogPage {
         const id = btn.getAttribute('data-id');
 
         if (!store.isCustomerLoggedIn()) {
-          authModal.open('login', 'Please verify your phone number to add items to cart', () => {
+          authModal.open('login', 'Please sign in to add items to cart', () => {
             store.addToCart(id, "M", 1);
           });
         } else {

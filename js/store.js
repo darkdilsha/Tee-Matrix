@@ -806,7 +806,7 @@ class StoreService {
 
     const token = await supabaseService.getAccessToken();
     if (!token) {
-      this.showToast("Please log in with mobile OTP to place your order", 'error');
+      this.showToast("Please sign in to place your order", 'error');
       return { success: false, message: "Authentication required" };
     }
 
@@ -860,7 +860,7 @@ class StoreService {
   async createDirectOrder(product, size, qty = 1, shippingInfo = {}, paymentInfo = {}) {
     const token = await supabaseService.getAccessToken();
     if (!token) {
-      this.showToast("Please log in with mobile OTP to place your order", 'error');
+      this.showToast("Please sign in to place your order", 'error');
       return { success: false, message: "Authentication required" };
     }
 
@@ -938,11 +938,55 @@ class StoreService {
       localStorage.setItem('tm_customers', JSON.stringify(customers));
     }
 
-    const session = { name: customer.name, phone: customer.phone, email: customer.email || '' };
+    const session = { name: customer.name, phone: customer.phone, email: customer.email || '', authProvider: 'phone' };
     localStorage.setItem('tm_customer_session', JSON.stringify(session));
     this.notify();
     this.showToast(`Logged in successfully as ${session.name}`);
     return { success: true, customer: session };
+  }
+
+  // Builds the local session from a Supabase user of either provider. A Google user has an
+  // email and no phone; a phone-OTP user has the reverse. Identity downstream is the Supabase
+  // user id, not the phone — the phone on an order is a delivery contact typed at checkout.
+  loginCustomerWithSupabaseUser(user, options = {}) {
+    if (!user) return { success: false, message: 'No authenticated user' };
+
+    const meta = user.user_metadata || {};
+    const email = user.email || meta.email || '';
+    const phone = user.phone ? (user.phone.startsWith('+') ? user.phone : `+${user.phone}`) : '';
+    const provider = user.app_metadata?.provider || (phone ? 'phone' : 'google');
+
+    // Prefer the provider's display name, then the email local-part, then a phone-tail label.
+    const name = meta.full_name || meta.name
+      || (email ? email.split('@')[0] : '')
+      || (phone ? `Member (${phone.slice(-4)})` : 'Customer');
+
+    const session = { name, phone, email, userId: user.id, authProvider: provider };
+    localStorage.setItem('tm_customer_session', JSON.stringify(session));
+
+    // Keep the local directory in sync so the account page has a record to read.
+    let customers = this.getCustomers();
+    const key = email || phone;
+    if (key && !customers.some(c => (c.email && c.email === email) || (c.phone && c.phone === phone))) {
+      customers.push({ name, phone, email });
+      localStorage.setItem('tm_customers', JSON.stringify(customers));
+    }
+
+    this.notify();
+    if (!options.silent) this.showToast(`Logged in successfully as ${name}`);
+    return { success: true, customer: session };
+  }
+
+  // Stable per-customer namespace. Phone digits when a verified phone exists, otherwise the
+  // Google email. Used for localStorage keys and order filtering — an empty string here would
+  // make every customer on a shared browser collide into one bucket.
+  getCustomerKey() {
+    const c = this.getCurrentCustomer();
+    if (!c) return '';
+    const digits = (c.phone || '').replace(/\D/g, '');
+    if (digits) return digits;
+    if (c.email) return `g:${c.email.toLowerCase()}`;
+    return c.userId ? `u:${c.userId}` : '';
   }
 
   updateCustomerProfile(updatedData) {
@@ -961,6 +1005,9 @@ class StoreService {
 
   logoutCustomer() {
     localStorage.removeItem('tm_customer_session');
+    // Without signing out of Supabase too, the provider session survives and app.js re-hydrates
+    // the customer on the next page load — the logout would appear to undo itself.
+    supabaseService.signOutSupabase().catch(() => {});
     this.clearCart();
     this.notify();
     this.showToast("Logged out successfully");

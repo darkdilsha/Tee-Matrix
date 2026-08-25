@@ -191,10 +191,12 @@ export class CartDrawer {
 
     document.getElementById('checkoutBtn')?.addEventListener('click', () => {
       if (!store.isCustomerLoggedIn()) {
+        // The 4th argument is the intent replayed after a Google redirect, which discards the
+        // callback. Both paths end in the same place: checkout opens once the customer is in.
         authModal.open('login', 'Please log in to proceed to Checkout', () => {
           this.close();
           window.dispatchEvent(new CustomEvent('openCheckout'));
-        });
+        }, 'openCheckout');
       } else {
         this.close();
         window.dispatchEvent(new CustomEvent('openCheckout'));
@@ -668,9 +670,9 @@ export class CheckoutModal {
 
       const token = await supabaseService.getAccessToken();
       if (!token) {
-        authModal.open('login', 'Please log in with mobile OTP before completing checkout', () => {
+        authModal.open('login', 'Please sign in again before completing checkout', () => {
           this.render();
-        });
+        }, 'openCheckout');
         return;
       }
 
@@ -700,7 +702,11 @@ export class CheckoutModal {
 
         const prefillName = this.shippingData?.name || store.getCurrentCustomer()?.name || "Customer";
         const prefillEmail = this.shippingData?.email || store.getCurrentCustomer()?.email || "teematrixsupport@gmail.com";
-        const prefillPhone = this.shippingData?.phone || store.getCurrentCustomer()?.phone || "8593071292";
+        // The delivery phone is whatever the customer typed into the required #shipPhone field.
+        // The old `|| "8593071292"` fallback was the merchant's own number — unreachable because
+        // the field is required, and dangerous because it would mask a missing-phone bug by
+        // prefilling Razorpay with the store owner's number instead of the buyer's.
+        const prefillPhone = this.shippingData?.phone || store.getCurrentCustomer()?.phone || "";
 
         const options = {
           key: orderData.key_id,
