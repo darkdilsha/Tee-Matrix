@@ -25,25 +25,6 @@ export class AdminPanel {
     this.isAuthenticated = localStorage.getItem('tm_admin_auth') === 'true';
     
     if (!this.isAuthenticated) {
-      // If user has an active Supabase session (e.g. from Google login), attempt transparent verification
-      supabaseService.getAccessToken().then(token => {
-        if (token && !this.isAuthenticated) {
-          supabaseService.verifyAdminSession().then(check => {
-            if (check.success) {
-              this.isAuthenticated = true;
-              localStorage.setItem('tm_admin_auth', 'true');
-              localStorage.setItem('tm_logged_admin', check.adminIdentifier || check.email || check.phone);
-              const container = document.getElementById('mainContent') || document.querySelector('main');
-              if (container && (window.location.hash === '#admin' || window.location.pathname.includes('admin'))) {
-                container.innerHTML = this.render();
-                this.attachEvents(() => {
-                  container.innerHTML = this.render();
-                });
-              }
-            }
-          });
-        }
-      });
       return this.renderLogin();
     }
     return this.renderDashboard();
@@ -1706,11 +1687,26 @@ export class AdminPanel {
 
     // Admin Google OAuth Button
     document.getElementById('adminGoogleLoginBtn')?.addEventListener('click', async () => {
+      const errEl = document.getElementById('adminAuthErr');
       try {
         sessionStorage.setItem('tm_post_login_action', 'openAdmin');
+        
+        // If an active session is already available in Supabase, verify directly:
+        const token = await supabaseService.getAccessToken();
+        if (token) {
+          const check = await supabaseService.verifyAdminSession();
+          if (check.success) {
+            this.isAuthenticated = true;
+            localStorage.setItem('tm_admin_auth', 'true');
+            localStorage.setItem('tm_logged_admin', check.adminIdentifier || check.email || check.phone);
+            store.showToast(`Welcome Admin (${check.adminIdentifier || check.email})`);
+            reRenderCallback();
+            return;
+          }
+        }
+
         const res = await supabaseService.signInWithGoogle();
         if (!res.success) {
-          const errEl = document.getElementById('adminAuthErr');
           if (errEl) {
             errEl.innerText = res.message || 'Could not initiate Google sign-in';
             errEl.style.display = 'block';
@@ -1718,6 +1714,10 @@ export class AdminPanel {
         }
       } catch (err) {
         console.error('Admin Google sign in error:', err);
+        if (errEl) {
+          errEl.innerText = err.message || 'Google sign-in failed';
+          errEl.style.display = 'block';
+        }
       }
     });
 
