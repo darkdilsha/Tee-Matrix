@@ -243,15 +243,8 @@ class StoreService {
     try {
       const remoteProducts = await supabaseService.fetchProducts();
       if (remoteProducts && Array.isArray(remoteProducts) && remoteProducts.length > 0) {
-        const deletedIds = JSON.parse(localStorage.getItem('tm_deleted_products') || '[]');
-        const local = this.getProducts();
-        const merged = [...remoteProducts.filter(rp => !deletedIds.includes(rp.id))];
-        local.forEach(lp => {
-          if (!merged.some(rp => rp.id === lp.id)) {
-            merged.push(lp);
-          }
-        });
-        localStorage.setItem('tm_products', JSON.stringify(merged));
+        // Authoritative Database Sync: Replace local cache with exact database catalog
+        localStorage.setItem('tm_products', JSON.stringify(remoteProducts));
         this.notify();
       }
     } catch (err) {
@@ -275,26 +268,18 @@ class StoreService {
   getProducts() {
     try {
       const stored = localStorage.getItem('tm_products');
-      const deletedIds = JSON.parse(localStorage.getItem('tm_deleted_products') || '[]');
-      
       let rawList = [];
       if (stored) {
         try {
           const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed)) rawList = parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) rawList = parsed;
         } catch (_) {
           rawList = [];
         }
       }
 
-      // Merge base INITIAL_PRODUCTS with any uploaded/custom products (unless explicitly deleted)
-      const nonDeletedInitials = INITIAL_PRODUCTS.filter(ip => !deletedIds.includes(ip.id));
-      const combined = [...rawList.filter(p => !deletedIds.includes(p.id))];
-      nonDeletedInitials.forEach(ip => {
-        if (!combined.some(p => p.id === ip.id)) {
-          combined.push(ip);
-        }
-      });
+      // Use stored database products if present, or INITIAL_PRODUCTS placeholder on clean boot
+      const combined = rawList.length > 0 ? rawList : INITIAL_PRODUCTS;
 
       return combined.map(p => {
         let sizes = ['S', 'M', 'L', 'XL'];
@@ -553,11 +538,6 @@ class StoreService {
   }
 
   deleteProduct(id) {
-    const deletedIds = JSON.parse(localStorage.getItem('tm_deleted_products') || '[]');
-    if (!deletedIds.includes(id)) {
-      deletedIds.push(id);
-      localStorage.setItem('tm_deleted_products', JSON.stringify(deletedIds));
-    }
     const products = this.getProducts().filter(p => p.id !== id);
     localStorage.setItem('tm_products', JSON.stringify(products));
     this.notify();
