@@ -1817,11 +1817,20 @@ export class AdminPanel {
     });
 
     // Logout
-    document.getElementById('adminLogoutBtn')?.addEventListener('click', () => {
+    document.getElementById('adminLogoutBtn')?.addEventListener('click', async () => {
       this.isAuthenticated = false;
       this.loginStep = 1;
+      this.adminPhone = '';
+      this.remoteOrders = null;
+      this.ordersError = null;
       localStorage.removeItem('tm_admin_auth');
       localStorage.removeItem('tm_logged_admin');
+      sessionStorage.removeItem('tm_post_login_action');
+      try {
+        await supabaseService.signOutSupabase();
+      } catch (_) {}
+      store.showToast('Admin logged out successfully');
+      window.location.hash = '#admin';
       reRenderCallback();
     });
 
