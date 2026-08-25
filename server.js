@@ -82,10 +82,9 @@ const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || DEFAULT_ADMIN_EMAILS.join(',')
   .map(e => e.trim().toLowerCase())
   .filter(Boolean);
 
-// Ensure local data directory exists for config persistence.
-// Hosts with a read-only filesystem must still boot: config then falls back to the
-// env-driven defaults below and admin edits are held in memory only.
-const DATA_DIR = path.join(__dirname, 'data');
+// Ensure data directory exists for config persistence.
+// On Vercel / serverless runtime, /tmp is writable while root directory is read-only.
+const DATA_DIR = process.env.VERCEL ? path.join('/tmp', 'tee-matrix-data') : path.join(__dirname, 'data');
 try {
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -97,9 +96,6 @@ try {
 const CONFIG_FILE = path.join(DATA_DIR, 'payment_config.json');
 
 // Default initial payment configuration.
-// MERCHANT_UPI_VPA must be set in the host environment. Deploy targets with an ephemeral
-// filesystem wipe payment_config.json on every redeploy, so this env var — not the file — is
-// what keeps UPI QRs pointed at the real merchant account.
 const DEFAULT_PAYMENT_CONFIG = {
   merchantUpiVpa: process.env.MERCHANT_UPI_VPA || 'teematrix@okaxis',
   merchantName: 'Tee Matrix',
@@ -125,23 +121,24 @@ function savePaymentConfig(cfg) {
   }
 }
 
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || `http://localhost:${PORT},http://127.0.0.1:${PORT}`)
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || `http://localhost:${PORT},http://127.0.0.1:${PORT},https://tee-matrix.vercel.app`)
   .split(',')
   .map(o => o.trim())
   .filter(Boolean);
 
 function getCorsOrigin(req) {
-  const origin = req.headers.origin;
-  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+  const origin = req.headers?.origin;
+  if (!origin) return '*';
+  if (ALLOWED_ORIGINS.includes(origin) || origin.endsWith('.vercel.app') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
     return origin;
   }
-  return null;
+  return origin;
 }
 
 function sendJSON(res, statusCode, data, req = null) {
   const headers = {
     'Content-Type': 'application/json',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, PATCH, DELETE',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Razorpay-Signature'
   };
   if (req) {
@@ -150,13 +147,50 @@ function sendJSON(res, statusCode, data, req = null) {
       headers['Access-Control-Allow-Origin'] = matchedOrigin;
     }
   }
-  res.writeHead(statusCode, headers);
-  res.end(JSON.stringify(data));
+  if (typeof res.setHeader === 'function') {
+    Object.entries(headers).forEach(([k, v]) => {
+      try { res.setHeader(k, v); } catch (_) {}
+    });
+  }
+  if (typeof res.status === 'function' && typeof res.json === 'function') {
+    return res.status(statusCode).json(data);
+  }
+  try {
+    res.writeHead(statusCode, headers);
+    res.end(JSON.stringify(data));
+  } catch (_) {
+    try { res.end(JSON.stringify(data)); } catch (_) {}
+  }
 }
 
-// Helper to read and capture raw buffer and parsed JSON request body
+// Universal body parser supporting both Node.js stream and pre-parsed Serverless req.body
 function parseBodyWithRaw(req) {
+  if (req.body !== undefined && req.body !== null) {
+    let parsed = req.body;
+    let rawString = '';
+    let rawBuffer = Buffer.from('');
+    if (typeof req.body === 'string') {
+      rawString = req.body;
+      rawBuffer = Buffer.from(req.body, 'utf8');
+      try { parsed = JSON.parse(req.body); } catch (_) { parsed = {}; }
+    } else if (typeof req.body === 'object' && Buffer.isBuffer(req.body)) {
+      rawBuffer = req.body;
+      rawString = req.body.toString('utf8');
+      try { parsed = JSON.parse(rawString); } catch (_) { parsed = {}; }
+    } else if (typeof req.body === 'object') {
+      parsed = req.body;
+      try {
+        rawString = JSON.stringify(req.body);
+        rawBuffer = Buffer.from(rawString, 'utf8');
+      } catch (_) {}
+    }
+    return Promise.resolve({ parsed, rawBuffer, rawString });
+  }
+
   return new Promise((resolve, reject) => {
+    if (req.readableEnded || req.complete) {
+      return resolve({ parsed: {}, rawBuffer: Buffer.from(''), rawString: '' });
+    }
     const chunks = [];
     let totalLength = 0;
     req.on('data', chunk => {
@@ -766,7 +800,17 @@ export async function handleRequest(req, res) {
     return;
   }
 
-  const reqUrl = req.url.split('?')[0];
+  const rawUrl = req.headers?.['x-forwarded-uri'] || 
+                 req.headers?.['x-matched-path'] || 
+                 req.url || '';
+  let reqUrl = rawUrl.split('?')[0];
+
+  if (req.query && req.query.path) {
+    const p = Array.isArray(req.query.path) ? req.query.path.join('/') : req.query.path;
+    reqUrl = `/api/${p}`;
+  } else if ((reqUrl === '/api/index.js' || reqUrl === '/api' || reqUrl === '/api/') && req.headers?.['x-forwarded-uri']) {
+    reqUrl = req.headers['x-forwarded-uri'].split('?')[0];
+  }
 
   // In cloud/serverless runtime, return clear descriptive error if credentials are not configured yet
   if (missingEnvVars.length > 0 && reqUrl.startsWith('/api/')) {
