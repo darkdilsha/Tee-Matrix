@@ -146,12 +146,11 @@ export class SupabaseService {
     return supabase.auth.onAuthStateChange(callback);
   }
 
-  // 3. Verify Admin Access via Server-Side Session Verification
-  async verifyAdminNumber(rawPhone) {
-    const phone = this.formatPhone(rawPhone);
+  // 3. Verify Admin Access via Server-Side Session Verification (Supports Email & Phone)
+  async verifyAdminSession() {
     const token = await this.getAccessToken();
     if (!token) {
-      return { success: false, message: 'Authentication required. Please sign in via OTP.' };
+      return { success: false, message: 'Authentication required. Please sign in with Google or Phone OTP.' };
     }
 
     try {
@@ -162,12 +161,22 @@ export class SupabaseService {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        return { success: true, role: data.role || 'Super Admin', phone: data.phone || phone };
+        return {
+          success: true,
+          role: data.role || 'Super Admin',
+          email: data.email || null,
+          phone: data.phone || null,
+          adminIdentifier: data.adminIdentifier || data.email || data.phone || 'Admin'
+        };
       }
       return { success: false, message: data.error || 'Access denied: caller is not an authorized administrator.' };
     } catch (err) {
       return { success: false, message: 'Could not verify admin credentials with server' };
     }
+  }
+
+  async verifyAdminNumber(rawPhone) {
+    return this.verifyAdminSession();
   }
 
   // 4. Products Table Operations

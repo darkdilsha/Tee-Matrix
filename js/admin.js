@@ -25,6 +25,25 @@ export class AdminPanel {
     this.isAuthenticated = localStorage.getItem('tm_admin_auth') === 'true';
     
     if (!this.isAuthenticated) {
+      // If user has an active Supabase session (e.g. from Google login), attempt transparent verification
+      supabaseService.getAccessToken().then(token => {
+        if (token && !this.isAuthenticated) {
+          supabaseService.verifyAdminSession().then(check => {
+            if (check.success) {
+              this.isAuthenticated = true;
+              localStorage.setItem('tm_admin_auth', 'true');
+              localStorage.setItem('tm_logged_admin', check.adminIdentifier || check.email || check.phone);
+              const container = document.getElementById('mainContent') || document.querySelector('main');
+              if (container && (window.location.hash === '#admin' || window.location.pathname.includes('admin'))) {
+                container.innerHTML = this.render();
+                this.attachEvents(() => {
+                  container.innerHTML = this.render();
+                });
+              }
+            }
+          });
+        }
+      });
       return this.renderLogin();
     }
     return this.renderDashboard();
@@ -37,7 +56,7 @@ export class AdminPanel {
         <div style="position: absolute; inset: 0; background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); pointer-events: none;"></div>
 
         <!-- Centered Floating Modern Card -->
-        <div style="position: relative; z-index: 10; width: 100%; max-width: 410px; background: #ffffff; border-radius: 24px; padding: 2.75rem 2.25rem 2rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35); text-align: center; color: #0f172a;">
+        <div style="position: relative; z-index: 10; width: 100%; max-width: 420px; background: #ffffff; border-radius: 24px; padding: 2.75rem 2.25rem 2rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35); text-align: center; color: #0f172a;">
           
           <!-- Top Icon Badge -->
           <div style="width: 50px; height: 50px; border-radius: 14px; background: #f0f7ff; border: 1px solid #e0f2fe; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 1.25rem; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.08);">
@@ -53,15 +72,39 @@ export class AdminPanel {
           </h1>
           <p style="color: #64748b; font-size: 0.82rem; line-height: 1.5; margin-bottom: 1.75rem; font-weight: 400;">
             ${this.loginStep === 1 
-              ? 'Authorized Admin Phone Verification.<br/>Enter your registered mobile number.' 
+              ? 'Sign in with your authorized Google Account (Gmail) or registered mobile number.' 
               : `Enter the 6-digit OTP code sent to<br/><strong style="color: #0f172a;">${this.adminPhone}</strong>`}
           </p>
 
           ${this.loginStep === 1 ? `
+            <!-- Google Sign-In for Instant Admin Access -->
+            <button 
+              type="button" 
+              id="adminGoogleLoginBtn" 
+              style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.75rem; padding: 0.85rem 1.25rem; background: #ffffff; color: #0f172a; border: 1px solid #cbd5e1; border-radius: 12px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; margin-bottom: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08);"
+              onmouseover="this.style.background='#f8fafc'; this.style.borderColor='#94a3b8';"
+              onmouseout="this.style.background='#ffffff'; this.style.borderColor='#cbd5e1';"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+              </svg>
+              <span>Sign in with Google (Admin)</span>
+            </button>
+
+            <!-- Divider -->
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.25rem;">
+              <div style="flex: 1; height: 1px; background: #e2e8f0;"></div>
+              <span style="font-size: 0.72rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">or mobile OTP</span>
+              <div style="flex: 1; height: 1px; background: #e2e8f0;"></div>
+            </div>
+
             <!-- Step 1: Admin Phone Form -->
             <form id="adminPhoneForm" style="display: flex; flex-direction: column; text-align: left;">
               <div style="margin-bottom: 1.25rem;">
-                <label style="font-size: 0.75rem; color: #64748b; font-weight: 600; display: block; margin-bottom: 0.4rem;">ADMIN MOBILE NUMBER *</label>
+                <label style="font-size: 0.75rem; color: #64748b; font-weight: 600; display: block; margin-bottom: 0.4rem;">ADMIN MOBILE NUMBER</label>
                 <div style="display: flex; gap: 0.5rem;">
                   <span style="padding: 0.85rem 1rem; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 12px; font-size: 0.9rem; font-weight: 600; color: #0f172a;">+91</span>
                   <input 
@@ -181,6 +224,7 @@ export class AdminPanel {
       .filter(o => o.paymentStatus === 'PAID')
       .reduce((sum, o) => sum + (Number(o.total) || 0), 0);
     const ordersLabel = this.remoteOrders === null ? '…' : orders.length;
+    const loggedAdmin = localStorage.getItem('tm_logged_admin') || 'Administrator';
 
     return `
       <div class="admin-container container">
@@ -189,7 +233,11 @@ export class AdminPanel {
             <span class="section-tag">CONTROL CENTER</span>
             <h1 class="brand-font" style="font-size: 2.5rem; color: #fff;">ADMIN DASHBOARD</h1>
           </div>
-          <div style="display: flex; gap: 1rem; align-items: center;">
+          <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+            <span style="font-size: 0.8rem; color: var(--text-muted); background: rgba(255,255,255,0.06); border: 1px solid var(--border-color); padding: 0.45rem 1rem; border-radius: 999px; display: inline-flex; align-items: center; gap: 0.5rem;">
+              <span style="display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #10b981;"></span>
+              <strong>${loggedAdmin}</strong>
+            </span>
             <button class="btn-secondary" id="adminLogoutBtn" style="padding: 0.6rem 1.5rem; font-size: 0.75rem;">LOGOUT</button>
           </div>
         </div>
@@ -1656,6 +1704,23 @@ export class AdminPanel {
       reRenderCallback();
     });
 
+    // Admin Google OAuth Button
+    document.getElementById('adminGoogleLoginBtn')?.addEventListener('click', async () => {
+      try {
+        sessionStorage.setItem('tm_post_login_action', 'openAdmin');
+        const res = await supabaseService.signInWithGoogle();
+        if (!res.success) {
+          const errEl = document.getElementById('adminAuthErr');
+          if (errEl) {
+            errEl.innerText = res.message || 'Could not initiate Google sign-in';
+            errEl.style.display = 'block';
+          }
+        }
+      } catch (err) {
+        console.error('Admin Google sign in error:', err);
+      }
+    });
+
     // Step 1: Admin Phone Form Submission
     const adminPhoneForm = document.getElementById('adminPhoneForm');
     if (adminPhoneForm) {
@@ -1968,14 +2033,14 @@ export class AdminPanel {
       return;
     }
 
-    // 2. Check phone number against authorized admin_numbers table & owner whitelist
-    const adminCheck = await supabaseService.verifyAdminNumber(this.adminPhone);
+    // 2. Check session against authorized server admin gate
+    const adminCheck = await supabaseService.verifyAdminSession();
 
     if (adminCheck.success) {
       this.isAuthenticated = true;
       localStorage.setItem('tm_admin_auth', 'true');
-      localStorage.setItem('tm_logged_admin', this.adminPhone);
-      store.showToast(`Welcome Master Admin (${this.adminPhone})`);
+      localStorage.setItem('tm_logged_admin', adminCheck.adminIdentifier || adminCheck.email || this.adminPhone);
+      store.showToast(`Welcome Master Admin (${adminCheck.adminIdentifier || adminCheck.email || this.adminPhone})`);
       reRenderCallback();
     } else {
       // OTP was valid but number is unauthorized
@@ -1984,7 +2049,7 @@ export class AdminPanel {
         setTimeout(() => boxContainer.classList.remove('otp-error'), 800);
       }
       if (errEl) {
-        errEl.innerText = adminCheck.message || "This number isn't authorized for admin access";
+        errEl.innerText = adminCheck.message || "This account isn't authorized for admin access";
         errEl.style.display = 'block';
       }
     }

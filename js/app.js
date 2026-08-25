@@ -120,6 +120,21 @@ class App {
       window.dispatchEvent(new CustomEvent('openCheckout'));
     } else if (action === 'openAccount') {
       accountModal.open();
+    } else if (action === 'openAdmin') {
+      this.setView('admin');
+      supabaseService.verifyAdminSession().then(check => {
+        if (check.success) {
+          localStorage.setItem('tm_admin_auth', 'true');
+          localStorage.setItem('tm_logged_admin', check.adminIdentifier || check.email || check.phone);
+          store.showToast(`Welcome Admin (${check.adminIdentifier || check.email})`);
+          this.render();
+        } else {
+          localStorage.removeItem('tm_admin_auth');
+          localStorage.removeItem('tm_logged_admin');
+          store.showToast(check.message || "This Google account is not authorized for admin access", 'error');
+          this.render();
+        }
+      });
     }
   }
 

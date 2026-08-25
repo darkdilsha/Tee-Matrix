@@ -63,6 +63,22 @@ INSERT INTO public.admin_numbers (phone, name, role)
 VALUES ('+918593071292', 'Master Administrator', 'Owner Super Admin')
 ON CONFLICT (phone) DO NOTHING;
 
+-- 4b. Authorized Admin Emails Table (For Google OAuth / Gmail Admin Sign-In)
+CREATE TABLE IF NOT EXISTS public.admin_emails (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  email TEXT UNIQUE NOT NULL,
+  name TEXT DEFAULT 'Administrator',
+  role TEXT DEFAULT 'Super Admin',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Seed Initial Authorized Admin Emails
+INSERT INTO public.admin_emails (email, name, role)
+VALUES 
+  ('teematrixsupport@gmail.com', 'Tee Matrix Support', 'Owner Super Admin'),
+  ('dilshad29052003@gmail.com', 'Dilshad Admin', 'Owner Super Admin')
+ON CONFLICT (email) DO UPDATE SET role = EXCLUDED.role;
+
 -- 5. Saved Customer Shipping Addresses Table
 CREATE TABLE IF NOT EXISTS public.addresses (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -183,18 +199,32 @@ CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS boolean
 LANGUAGE sql
 STABLE
-SECURITY DEFINER AS $$
-  SELECT public.jwt_phone_digits() <> ''
-     AND EXISTS (
-       SELECT 1 FROM public.admin_numbers a
-       WHERE regexp_replace(a.phone, '\D', '', 'g') = public.jwt_phone_digits()
-     )
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT (
+    -- Phone matching against admin_numbers
+    (public.jwt_phone_digits() <> '' AND EXISTS (
+      SELECT 1 FROM public.admin_numbers a
+      WHERE regexp_replace(a.phone, '\D', '', 'g') = public.jwt_phone_digits()
+    ))
+    OR
+    -- Email matching against authorized admin_emails or verified admin email claim
+    (coalesce(nullif(auth.jwt() ->> 'email', ''), '') <> '' AND (
+      EXISTS (
+        SELECT 1 FROM public.admin_emails e
+        WHERE lower(e.email) = lower(auth.jwt() ->> 'email')
+      )
+      OR lower(auth.jwt() ->> 'email') IN ('teematrixsupport@gmail.com', 'dilshad29052003@gmail.com')
+    ))
+  );
 $$;
 
 -- 10. Enable Row Level Security (RLS) on all tables
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_numbers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_emails ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.addresses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payment_methods ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
@@ -207,6 +237,8 @@ DROP POLICY IF EXISTS "products admin write" ON public.products;
 
 DROP POLICY IF EXISTS "Allow public read access to admin_numbers" ON public.admin_numbers;
 DROP POLICY IF EXISTS "admin_numbers admin only" ON public.admin_numbers;
+
+DROP POLICY IF EXISTS "admin_emails admin only" ON public.admin_emails;
 
 DROP POLICY IF EXISTS "Allow public access to users" ON public.users;
 DROP POLICY IF EXISTS "users own rows" ON public.users;
@@ -232,6 +264,12 @@ CREATE POLICY "products admin write" ON public.products
 
 -- admin_numbers: strictly admin only, zero anonymous or customer visibility
 CREATE POLICY "admin_numbers admin only" ON public.admin_numbers
+  FOR ALL
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
+
+-- admin_emails: strictly admin only
+CREATE POLICY "admin_emails admin only" ON public.admin_emails
   FOR ALL
   USING (public.is_admin())
   WITH CHECK (public.is_admin());

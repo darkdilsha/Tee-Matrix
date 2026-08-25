@@ -70,6 +70,16 @@ const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
 const RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET;
 
+// Authorized Administrator Emails (Configured via ADMIN_EMAILS env or default official support emails)
+const DEFAULT_ADMIN_EMAILS = [
+  'teematrixsupport@gmail.com',
+  'dilshad29052003@gmail.com'
+];
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || DEFAULT_ADMIN_EMAILS.join(','))
+  .split(',')
+  .map(e => e.trim().toLowerCase())
+  .filter(Boolean);
+
 // Ensure local data directory exists for config persistence.
 // Hosts with a read-only filesystem must still boot: config then falls back to the
 // env-driven defaults below and admin edits are held in memory only.
@@ -282,22 +292,28 @@ async function verifyCustomer(req) {
   return { user, userId: user.id, phone: rawPhone, phoneDigits, email, provider, token };
 }
 
-// Admin Auth Verification
+// Admin Auth Verification (Supports verified Admin Email / Gmail OAuth AND Phone OTP)
 async function requireAdmin(req) {
   const auth = await verifyCustomer(req);
-  // Admin is phone-only. verifyCustomer used to throw for an empty phone, which implicitly
-  // protected this; now that an email session is a valid customer, the guard has to be explicit.
-  // Without it, an admin_numbers row holding whitespace would reduce to '' === '' and match any
-  // Google session. The DB's is_admin() guards the same way with jwt_phone_digits() <> ''.
-  if (!auth.phoneDigits) {
-    throw { status: 403, message: 'Administrator access requires a verified mobile number' };
+
+  // 1. Check Email-based Admin Authentication (Google OAuth / Verified Admin Email)
+  if (auth.email) {
+    const isEmailAdmin = ADMIN_EMAILS.includes(auth.email.toLowerCase());
+    if (isEmailAdmin) {
+      return { ...auth, role: 'Super Admin', adminIdentifier: auth.email };
+    }
   }
-  const admins = await supabaseQuery('admin_numbers?select=*');
-  const isAdmin = Array.isArray(admins) && admins.some(a => (a.phone || '').replace(/\D/g, '') === auth.phoneDigits);
-  if (!isAdmin) {
-    throw { status: 403, message: 'Caller is not an authorized administrator' };
+
+  // 2. Check Phone-based Admin Authentication (Phone OTP)
+  if (auth.phoneDigits) {
+    const admins = await supabaseQuery('admin_numbers?select=*');
+    const isPhoneAdmin = Array.isArray(admins) && admins.some(a => (a.phone || '').replace(/\D/g, '') === auth.phoneDigits);
+    if (isPhoneAdmin) {
+      return { ...auth, role: 'Super Admin', adminIdentifier: auth.phone };
+    }
   }
-  return { ...auth, role: 'Super Admin' };
+
+  throw { status: 403, message: `Access denied: '${auth.email || auth.phone}' is not an authorized administrator.` };
 }
 
 // Atomic stock decrement helper via Supabase stored procedure
@@ -1095,7 +1111,9 @@ const server = http.createServer(async (req, res) => {
       return sendJSON(res, 200, {
         success: true,
         role: adminAuth.role,
-        phone: adminAuth.phone
+        email: adminAuth.email || null,
+        phone: adminAuth.phone || null,
+        adminIdentifier: adminAuth.adminIdentifier || adminAuth.email || adminAuth.phone
       }, req);
     } catch (err) {
       const status = err.status || 401;

@@ -24,3 +24,7 @@ scratch/
 dlt_research/
 dlt_docs/
 dlt_src/
+
+# Editor & Assistant state
+.claude/
+
