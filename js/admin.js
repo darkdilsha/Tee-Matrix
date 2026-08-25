@@ -1,6 +1,5 @@
 import { store } from './store.js';
 import { supabaseService, supabase } from './supabase.js';
-import { ProductImageAI } from './imageAI.js';
 
 export class AdminPanel {
   constructor() {
@@ -871,13 +870,8 @@ export class AdminPanel {
                 <polyline points="21 15 16 10 5 21"/>
               </svg>
               <div style="font-size: 0.95rem; font-weight: 600; color: #fff;">Drop T-Shirt photo here or browse</div>
-              <small style="color: var(--text-muted); display: block; margin-top: 0.25rem;">AI will automatically analyze the Primary Image to generate product details</small>
+              <small style="color: var(--text-muted); display: block; margin-top: 0.25rem;">JPG, PNG, or WEBP up to 5MB. The 1st image is the primary photo.</small>
               <input type="file" id="pFileInput" multiple accept="image/jpeg,image/png,image/webp" style="display: none;" />
-            </div>
-
-            <!-- AI Status Banner -->
-            <div id="aiStatusContainer" style="display: none; margin-top: 0.75rem; padding: 0.85rem 1.1rem; border-radius: 8px; font-size: 0.82rem; transition: all 0.3s ease;">
-              <!-- Populated Dynamically -->
             </div>
 
             <!-- Uploaded Image Thumbnails with Primary Designation -->
@@ -886,67 +880,50 @@ export class AdminPanel {
             </div>
             
             <span style="font-size: 0.7rem; color: var(--text-muted); display: block; margin-top: 0.4rem;">
-              The first thumbnail is the <strong>Primary Image</strong> used by AI. Click <strong>"★ Set as Primary"</strong> or drag any photo to the 1st slot to re-analyze.
+              The first thumbnail is the <strong>Primary Image</strong> shown on the storefront. Click <strong>"★ Set Primary"</strong> or drag any photo to the 1st slot.
             </span>
 
-            <!-- AI-Generated Model Image Setting -->
+            <!-- Model Image Setting -->
             <div style="margin-top: 0.75rem; padding: 0.9rem 1rem; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                 <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">
                   Product Image Type
                 </span>
-                <span style="font-size: 0.7rem; color: var(--text-muted);">Select if an AI model is shown</span>
+                <span style="font-size: 0.7rem; color: var(--text-muted);">Select display presentation style</span>
               </div>
-              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;" id="modelImageTypeSelector">
+              <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem;" id="modelImageTypeSelector">
                 <button type="button" class="btn-secondary model-type-btn ${modelImageType === 'product_only' ? 'active' : ''}" data-type="product_only" style="padding: 0.5rem 0.4rem; font-size: 0.75rem; border-radius: 6px; text-align: center;">
-                  👕 Product Only
+                  👕 Product Only (Flat Lay)
                 </button>
                 <button type="button" class="btn-secondary model-type-btn ${modelImageType === 'real_model' ? 'active' : ''}" data-type="real_model" style="padding: 0.5rem 0.4rem; font-size: 0.75rem; border-radius: 6px; text-align: center;">
-                  🧍 Real Model
-                </button>
-                <button type="button" class="btn-secondary model-type-btn ${modelImageType === 'ai_model' ? 'active' : ''}" data-type="ai_model" style="padding: 0.5rem 0.4rem; font-size: 0.75rem; border-radius: 6px; text-align: center;">
-                  ✨ AI-Generated Model
+                  🧍 On Model Photo
                 </button>
               </div>
             </div>
           </div>
 
-          <!-- STEP 2: AI-GENERATED PRODUCT INFO -->
+          <!-- STEP 2: PRODUCT INFO -->
           <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; gap: 1.15rem;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: 0.8rem; font-weight: 700; color: #38bdf8; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.4rem;">
-                <span>🤖</span> STEP 2 — PRODUCT NAME, DESCRIPTION & HIGHLIGHTS
-              </span>
-              <button type="button" id="reAnalyzeBtn" class="btn-secondary" style="font-size: 0.7rem; padding: 0.3rem 0.65rem; border-color: #38bdf8; color: #38bdf8;">
-                ⚡ RE-ANALYZE IMAGE
-              </button>
-            </div>
+            <span style="font-size: 0.8rem; font-weight: 700; color: #38bdf8; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.4rem;">
+              <span>📝</span> STEP 2 — PRODUCT NAME, DESCRIPTION & HIGHLIGHTS
+            </span>
 
             <!-- Product Name -->
             <div>
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-                <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">PRODUCT NAME *</label>
-                <span id="nameAiBadge" style="display: none; font-size: 0.68rem; color: #38bdf8; background: rgba(56, 189, 248, 0.1); padding: 0.15rem 0.45rem; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.25);">✨ AI Generated</span>
-              </div>
-              <input type="text" id="pName" required class="input-field" placeholder="e.g. Classic Black Relaxed Fit T-Shirt" value="${p.name || ''}" style="font-weight: 600; font-size: 0.95rem;" />
+              <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600; display: block; margin-bottom: 0.4rem;">PRODUCT NAME *</label>
+              <input type="text" id="pName" required class="input-field" placeholder="e.g. Vintage Acid Wash Graphic Tee" value="${p.name || ''}" style="font-weight: 600; font-size: 0.95rem;" />
             </div>
 
             <!-- Product Description -->
             <div>
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-                <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">PRODUCT DESCRIPTION</label>
-                <span id="descAiBadge" style="display: none; font-size: 0.68rem; color: #38bdf8; background: rgba(56, 189, 248, 0.1); padding: 0.15rem 0.45rem; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.25);">✨ AI Generated</span>
-              </div>
-              <textarea id="pDesc" rows="3" class="input-field" placeholder="Short, professional description based on the T-shirt image..." style="resize: vertical; font-size: 0.85rem; line-height: 1.6;">${p.description || ''}</textarea>
+              <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600; display: block; margin-bottom: 0.4rem;">PRODUCT DESCRIPTION</label>
+              <textarea id="pDesc" rows="3" class="input-field" placeholder="Enter product description, fit details, fabric composition, etc." style="resize: vertical; font-size: 0.85rem; line-height: 1.6;">${p.description || ''}</textarea>
             </div>
 
             <!-- Product Highlights -->
             <div>
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                  <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">PRODUCT HIGHLIGHTS</label>
-                  <span id="highlightsAiBadge" style="display: none; font-size: 0.68rem; color: #38bdf8; background: rgba(56, 189, 248, 0.1); padding: 0.15rem 0.45rem; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.25);">✨ AI Generated</span>
-                </div>
+                <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">PRODUCT HIGHLIGHTS</label>
                 <button type="button" id="addHighlightBtn" class="btn-secondary" style="font-size: 0.72rem; padding: 0.3rem 0.65rem; white-space: nowrap;">
                   + ADD HIGHLIGHT
                 </button>
@@ -1122,12 +1099,6 @@ export class AdminPanel {
               const reordered = rects.map(r => uploadedImages[r.index]);
               uploadedImages = reordered;
               renderThumbnails();
-
-              const newPrimaryId = uploadedImages[0]?.id || uploadedImages[0]?.url;
-              if (oldPrimaryId !== newPrimaryId && uploadedImages[0]) {
-                // Primary image changed: re-analyze using the new Primary Image ONLY
-                triggerAIAnalysis(uploadedImages[0].file || uploadedImages[0].url);
-              }
             } else {
               gsap.set(el, { x: 0, y: 0 });
             }
@@ -1165,7 +1136,7 @@ export class AdminPanel {
             <button type="button" class="remove-btn" data-index="${idx}">&times;</button>
             
             ${!isPrimary ? `
-              <button type="button" class="make-primary-btn" data-index="${idx}" title="Set as Primary Image (AI will analyze this photo)" style="position: absolute; bottom: 6px; left: 4px; right: 4px; background: rgba(0,0,0,0.85); border: 1px solid rgba(245,158,11,0.4); color: #fff; font-size: 0.65rem; padding: 0.25rem 0.2rem; border-radius: 4px; cursor: pointer; text-align: center; font-weight: 700; z-index: 10; transition: all 0.2s ease;">
+              <button type="button" class="make-primary-btn" data-index="${idx}" title="Set as Primary Image" style="position: absolute; bottom: 6px; left: 4px; right: 4px; background: rgba(0,0,0,0.85); border: 1px solid rgba(245,158,11,0.4); color: #fff; font-size: 0.65rem; padding: 0.25rem 0.2rem; border-radius: 4px; cursor: pointer; text-align: center; font-weight: 700; z-index: 10; transition: all 0.2s ease;">
                 ★ Set Primary
               </button>
             ` : ''}
@@ -1204,8 +1175,6 @@ export class AdminPanel {
             const selectedPrimary = uploadedImages.splice(idx, 1)[0];
             uploadedImages.unshift(selectedPrimary);
             renderThumbnails();
-            // Automatically re-run AI analysis on the new Primary Image ONLY
-            triggerAIAnalysis(selectedPrimary.file || selectedPrimary.url);
           }
         });
       });
@@ -1215,102 +1184,8 @@ export class AdminPanel {
 
     let renderHighlightsGlobal = null;
 
-    const triggerAIAnalysis = async (fileOrUrl) => {
-      const aiStatus = document.getElementById('aiStatusContainer');
-      if (aiStatus) {
-        aiStatus.style.display = 'block';
-        aiStatus.style.background = 'rgba(56, 189, 248, 0.08)';
-        aiStatus.style.border = '1px solid rgba(56, 189, 248, 0.25)';
-        aiStatus.innerHTML = `
-          <div style="display: flex; align-items: center; gap: 0.65rem; color: #38bdf8;">
-            <div class="spinner" style="width: 16px; height: 16px; border: 2px solid rgba(56, 189, 248, 0.25); border-top-color: #38bdf8; border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0;"></div>
-            <span style="font-weight: 600; font-size: 0.85rem;">Analyzing Primary Image...</span>
-          </div>
-        `;
-      }
-
-      // Analyze ONLY the Primary Image
-      const aiResult = await ProductImageAI.analyzeImage(fileOrUrl);
-
-      if (!aiStatus) return;
-
-      if (aiResult.success) {
-        // 1. Auto-populate Product Name
-        const nameEl = document.getElementById('pName');
-        if (nameEl) {
-          nameEl.value = aiResult.name;
-          nameEl.style.transition = 'border-color 0.4s ease';
-          nameEl.style.borderColor = '#38bdf8';
-          setTimeout(() => nameEl.style.borderColor = '', 1200);
-        }
-
-        // 2. Auto-populate Description (starts with product name)
-        const descEl = document.getElementById('pDesc');
-        if (descEl) {
-          descEl.value = aiResult.description;
-          descEl.style.transition = 'border-color 0.4s ease';
-          descEl.style.borderColor = '#38bdf8';
-          setTimeout(() => descEl.style.borderColor = '', 1200);
-        }
-
-        // 3. Auto-populate Highlights (4-6 bullets)
-        highlightsList = [...aiResult.highlights];
-        if (typeof renderHighlightsGlobal === 'function') {
-          renderHighlightsGlobal();
-        }
-
-        // 4. Auto-populate Detected Attributes
-        if (aiResult.attributes) {
-          const catEl = document.getElementById('pCategory');
-          if (catEl && aiResult.attributes.category) catEl.value = aiResult.attributes.category;
-
-          const colorEl = document.getElementById('pColor');
-          if (colorEl && aiResult.attributes.color) colorEl.value = aiResult.attributes.color;
-
-          const patEl = document.getElementById('pPattern');
-          if (patEl && aiResult.attributes.pattern) patEl.value = aiResult.attributes.pattern;
-
-          const fitEl = document.getElementById('pFit');
-          if (fitEl && aiResult.attributes.fit) fitEl.value = aiResult.attributes.fit;
-
-          const neckEl = document.getElementById('pNeckType');
-          if (neckEl && aiResult.attributes.neckType) neckEl.value = aiResult.attributes.neckType;
-
-          const sleeveEl = document.getElementById('pSleeveType');
-          if (sleeveEl && aiResult.attributes.sleeveType) sleeveEl.value = aiResult.attributes.sleeveType;
-        }
-
-        aiStatus.style.background = 'rgba(16, 185, 129, 0.08)';
-        aiStatus.style.border = '1px solid rgba(16, 185, 129, 0.25)';
-        aiStatus.innerHTML = `
-          <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; color: #10b981;">
-            <div style="display: flex; align-items: center; gap: 0.5rem;">
-              <span>✨</span>
-              <span><strong>AI Analysis Complete (Primary Image):</strong> Generated Name ("${aiResult.name}"), Description, ${aiResult.highlights.length} Highlights & Specs. You can edit any field before saving.</span>
-            </div>
-            <button type="button" style="background: none; border: none; color: #10b981; cursor: pointer; font-size: 1.2rem; line-height: 1; padding: 0 0.3rem;" onclick="this.closest('#aiStatusContainer').style.display='none'">&times;</button>
-          </div>
-        `;
-        store.showToast(`✨ Generated "${aiResult.name}" details from Primary Image!`);
-      } else {
-        aiStatus.style.background = 'rgba(239, 68, 68, 0.08)';
-        aiStatus.style.border = '1px solid rgba(239, 68, 68, 0.25)';
-        aiStatus.innerHTML = `
-          <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; color: #ef4444;">
-            <div style="display: flex; align-items: center; gap: 0.5rem;">
-              <span>⚠️</span>
-              <span>${aiResult.error || 'Could not analyze Primary Image'}. You can enter details manually.</span>
-            </div>
-            <button type="button" style="background: none; border: none; color: #ef4444; cursor: pointer; font-size: 1.2rem; line-height: 1; padding: 0 0.3rem;" onclick="this.closest('#aiStatusContainer').style.display='none'">&times;</button>
-          </div>
-        `;
-      }
-    };
-
     const handleFiles = (files) => {
       const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-      const wasEmpty = uploadedImages.length === 0;
-      let firstValidFile = null;
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
@@ -1324,8 +1199,6 @@ export class AdminPanel {
           store.showToast(`"${file.name}" exceeds the 5MB file size limit.`, 'error');
           continue;
         }
-
-        if (!firstValidFile) firstValidFile = file;
 
         const tempId = Math.random().toString();
         const imgObj = {
@@ -1361,11 +1234,6 @@ export class AdminPanel {
           imgObj.error = false;
           renderThumbnails();
         });
-      }
-
-      // Automatically trigger AI analysis ONLY if this upload set provides the Primary Image
-      if (wasEmpty && firstValidFile) {
-        triggerAIAnalysis(firstValidFile);
       }
     };
 
@@ -1616,16 +1484,6 @@ export class AdminPanel {
 
       renderHighlights();
     };
-
-    // Connect Re-Analyze AI trigger button (Analyzes Primary Image Only)
-    document.getElementById('reAnalyzeBtn')?.addEventListener('click', () => {
-      const primaryImg = uploadedImages[0];
-      if (primaryImg && !primaryImg.error && primaryImg.url) {
-        triggerAIAnalysis(primaryImg.file || primaryImg.url);
-      } else {
-        store.showToast("Please upload a primary product photo first to analyze with AI.", 'error');
-      }
-    });
 
     // Initial render and setup
     renderThumbnails();
