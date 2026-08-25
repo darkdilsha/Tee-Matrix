@@ -748,7 +748,7 @@ function handleStaticFile(req, res, reqUrl) {
 // ===================================================
 // HTTP Server & API Routing
 // ===================================================
-const server = http.createServer(async (req, res) => {
+export async function handleRequest(req, res) {
   // CORS Preflight
   if (req.method === 'OPTIONS') {
     const matchedOrigin = getCorsOrigin(req);
@@ -1404,11 +1404,17 @@ const server = http.createServer(async (req, res) => {
   // Route 12: Static File Serving & Hardened SPA Routing
   // ---------------------------------------------------
   handleStaticFile(req, res, reqUrl);
-});
+}
 
-server.listen(PORT, () => {
-  console.log(`\n==================================================`);
-  console.log(` TEE MATRIX Secure Server is live at: http://localhost:${PORT}`);
-  console.log(` Admin Portal accessible at: http://localhost:${PORT}/#admin`);
-  console.log(`==================================================\n`);
-});
+export const server = http.createServer(handleRequest);
+
+if (!process.env.VERCEL) {
+  server.listen(PORT, () => {
+    console.log(`\n==================================================`);
+    console.log(` TEE MATRIX Secure Server is live at: http://localhost:${PORT}`);
+    console.log(` Admin Portal accessible at: http://localhost:${PORT}/#admin`);
+    console.log(`==================================================\n`);
+  });
+}
+
+export default handleRequest;

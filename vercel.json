@@ -1,8 +1,9 @@
 {
+  "version": 2,
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://REPLACE-WITH-YOUR-RENDER-HOST.onrender.com/api/:path*"
+      "destination": "/api/index.js"
     },
     { "source": "/privacy-policy", "destination": "/index.html" },
     { "source": "/terms-and-conditions", "destination": "/index.html" },
