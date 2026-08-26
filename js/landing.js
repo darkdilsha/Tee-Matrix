@@ -137,7 +137,7 @@ export class LandingPage {
                 THE ACID MATRIX SERIES
               </h2>
               <p id="pinnedSubtitle" style="font-size: 0.95rem; color: var(--text-secondary); line-height: 1.7; margin-bottom: 1.5rem; letter-spacing: 0.02em; transition: opacity 0.3s ease;">
-                Custom acid wash finish crafted from 300 GSM combed organic cotton with drop-shoulder boxy drape.
+                Custom acid wash finish crafted from heavyweight combed organic cotton with drop-shoulder boxy drape.
               </p>
 
               <div style="display: flex; align-items: center; gap: 1.5rem; margin-bottom: 2rem;">

@@ -221,13 +221,13 @@ export class FashionMotionController {
       {
         tag: "LOOK 01 / 03 &bull; FEATURED LOOKBOOK",
         title: "THE ACID MATRIX SERIES",
-        desc: "Custom acid wash finish crafted from 300 GSM combed organic cotton with drop-shoulder boxy drape.",
+        desc: "Custom acid wash finish crafted from heavyweight combed organic cotton with drop-shoulder boxy drape.",
         price: "₹1,999"
       },
       {
         tag: "LOOK 02 / 03 &bull; FEATURED LOOKBOOK",
         title: "CYBERNETIC MATRIX DROP",
-        desc: "Dystopian graphic placement on 280 GSM heavyweight jersey. Engineered for urban outerwear.",
+        desc: "Dystopian graphic placement on premium heavyweight jersey. Engineered for urban outerwear.",
         price: "₹2,499"
       },
       {

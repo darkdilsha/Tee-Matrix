@@ -83,7 +83,7 @@ export class CartDrawer {
                 </div>
                 <div style="display: flex; gap: 0.75rem; font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
                   <span>Size: <strong>${item.size}</strong></span>
-                  <span>${item.gsm} GSM</span>
+                  ${item.color ? `<span>Color: <strong>${item.color}</strong></span>` : ''}
                 </div>
               </div>
 
