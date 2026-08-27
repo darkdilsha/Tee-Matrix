@@ -59,7 +59,7 @@ export function renderSiteFooter() {
               </div>
               <div>
                 <span style="font-size: 0.72rem; color: var(--text-muted); display: block; text-transform: uppercase;">Registered Atelier Address</span>
-                <span style="color: #d1d5db; font-size: 0.8rem;">Koramangala 5th Block, Bangalore, Karnataka - 560095, India</span>
+                <span style="color: #d1d5db; font-size: 0.8rem;">Valanchery, Malappuram, Kerala, India</span>
               </div>
             </div>
           </div>
@@ -156,7 +156,7 @@ export class PoliciesPage {
               </div>
               <div>
                 <span style="color: var(--text-muted); display: block; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em;">Operating Atelier Hub</span>
-                <span style="color: #eee;">Koramangala 5th Block, Bangalore, Karnataka - 560095, India</span>
+                <span style="color: #eee;">Valanchery, Malappuram, Kerala, India</span>
               </div>
             </div>
           </div>
@@ -255,7 +255,7 @@ export class PoliciesPage {
             To the fullest extent permitted by applicable Indian law, Tee Matrix shall not be liable for any indirect, incidental, punitive, or consequential damages resulting from the use or inability to use our products or services.
           </p>
           <p style="margin-top: 0.5rem;">
-            These Terms and Conditions shall be governed by and construed in accordance with the laws of India. Any disputes arising in connection with these terms shall be subject to the exclusive jurisdiction of the competent courts in <strong>Bangalore, Karnataka, India</strong>.
+            These Terms and Conditions shall be governed by and construed in accordance with the laws of India. Any disputes arising in connection with these terms shall be subject to the exclusive jurisdiction of the competent courts in <strong>Malappuram, Kerala, India</strong>.
           </p>
         </div>
       </section>
@@ -320,7 +320,7 @@ export class PoliciesPage {
           <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 1rem; border-radius: 6px; margin-top: 0.5rem;">
             <div><strong>Grievance Officer:</strong> Customer Relations Team, Tee Matrix</div>
             <div><strong>Email:</strong> <a href="mailto:teematrixsupport@gmail.com" style="color: var(--accent-gold); text-decoration: none;">teematrixsupport@gmail.com</a></div>
-            <div><strong>Address:</strong> Koramangala 5th Block, Bangalore, Karnataka - 560095, India</div>
+            <div><strong>Address:</strong> Valanchery, Malappuram, Kerala, India</div>
           </div>
         </div>
       </section>
