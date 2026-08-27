@@ -418,12 +418,27 @@ class App {
       this.setView('shop');
     });
 
-    document.getElementById('adminLogoutHeaderBtn')?.addEventListener('click', () => {
+    document.getElementById('adminLogoutHeaderBtn')?.addEventListener('click', async () => {
+      if (this.adminPanel.timerInterval) {
+        clearInterval(this.adminPanel.timerInterval);
+        this.adminPanel.timerInterval = null;
+      }
+      this.adminPanel.isAuthenticated = false;
+      this.adminPanel.loginStep = 1;
+      this.adminPanel.adminPhone = '';
+      this.adminPanel.remoteOrders = null;
+      this.adminPanel.ordersError = null;
+      this.adminPanel.ordersLoading = false;
+      this.adminPanel.editingProduct = null;
+      this.adminPanel.isAddingProduct = false;
       localStorage.removeItem('tm_admin_auth');
       localStorage.removeItem('tm_logged_admin');
-      this.adminPanel.isAuthenticated = false;
-      store.showToast("Admin Logged Out");
-      this.render();
+      sessionStorage.removeItem('tm_post_login_action');
+      try {
+        await supabaseService.signOutSupabase();
+      } catch (_) {}
+      store.showToast("Admin session terminated. Returned to login page.");
+      this.setView('admin');
     });
 
     document.querySelectorAll('.brand-link').forEach(link => {

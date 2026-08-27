@@ -1710,18 +1710,25 @@ export class AdminPanel {
 
     // Logout
     document.getElementById('adminLogoutBtn')?.addEventListener('click', async () => {
+      if (this.timerInterval) {
+        clearInterval(this.timerInterval);
+        this.timerInterval = null;
+      }
       this.isAuthenticated = false;
       this.loginStep = 1;
       this.adminPhone = '';
       this.remoteOrders = null;
       this.ordersError = null;
+      this.ordersLoading = false;
+      this.editingProduct = null;
+      this.isAddingProduct = false;
       localStorage.removeItem('tm_admin_auth');
       localStorage.removeItem('tm_logged_admin');
       sessionStorage.removeItem('tm_post_login_action');
       try {
         await supabaseService.signOutSupabase();
       } catch (_) {}
-      store.showToast('Admin logged out successfully');
+      store.showToast('Admin session terminated. Returned to login page.');
       window.location.hash = '#admin';
       reRenderCallback();
     });
